@@ -48,6 +48,22 @@ npm publish --access public
 bun test
 ```
 
+## Build System
+
+`tsc --noEmit` performs type checking only. `node build.mjs` uses esbuild to
+bundle each entry point (node + credential) into a single CJS file under
+`dist/`. The `ipp` package is bundled inline; only `n8n-workflow` is marked
+external (provided by n8n at runtime).
+
+This means `dist/nodes/Printer/Printer.node.js` is self-contained and works
+without a `node_modules/ipp` next to it — both in development (volume mount)
+and in production (npm install).
+
+```
+tsc --noEmit          type-check
+node build.mjs        bundle → dist/
+```
+
 ## Architecture
 
 ```

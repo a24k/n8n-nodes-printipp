@@ -15,7 +15,7 @@
 		"url": "https://github.com/a24k/n8n-nodes-printipp.git"
 	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json && cp src/nodes/Printer/printer.svg dist/nodes/Printer/",
+		"build": "tsc --noEmit && bun build.mjs",
 		"lint": "biome check src tests",
 		"lint:fix": "biome check --write src tests",
 		"prepublishOnly": "bun run lint && bun run build",
@@ -43,7 +43,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.8",
 		"@types/node": "^24.0.0",
-		"n8n-workflow": "^2.13.1",
+"n8n-workflow": "^2.13.1",
 		"typescript": "^6.0.3"
 	}
 }
