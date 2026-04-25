@@ -1,5 +1,7 @@
 import { Printer as IppPrinter } from "ipp";
 import type {
+	ICredentialsDecrypted,
+	ICredentialTestFunctions,
 	IExecuteFunctions,
 	INodeCredentialTestResult,
 	INodeExecutionData,
@@ -174,6 +176,22 @@ const nodeDescription: INodeTypeDescription = {
 
 export class Printer implements INodeType {
 	description: INodeTypeDescription = nodeDescription;
+
+	methods = {
+		credentialTest: {
+			async ippCredentialTest(
+				this: ICredentialTestFunctions,
+				credential: ICredentialsDecrypted,
+			): Promise<INodeCredentialTestResult> {
+				const { host, port, username } = credential.data as {
+					host: string;
+					port: number;
+					username: string;
+				};
+				return testIppConnection(host, port, username);
+			},
+		},
+	};
 
 	// Assigned in the constructor so printerFactory is captured via closure,
 	// while `this` inside is the IExecuteFunctions context provided by n8n.

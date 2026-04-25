@@ -393,6 +393,15 @@ describe("Printer execute — error handling", () => {
 	});
 });
 
+describe("Printer credentialTest wiring", () => {
+	it("exposes ippCredentialTest in methods.credentialTest", () => {
+		const node = new Printer();
+		expect(typeof node.methods?.credentialTest?.ippCredentialTest).toBe(
+			"function",
+		);
+	});
+});
+
 describe("testIppConnection", () => {
 	it("sends CUPS-Get-Printers to root endpoint", async () => {
 		const capturedUrls: string[] = [];
