@@ -34,6 +34,15 @@ Defined in `src/credentials/IppApi.credentials.ts`.
 
 The printer URI is constructed at runtime as `http://{host}:{port}/printers/{printerName}`.
 
+### Test Connection
+
+A "Test connection" button is available in the credential UI.
+
+- **Implementation:** `testedBy: "ippCredentialTest"` in the node description wires the button to `methods.credentialTest.ippCredentialTest` on the `Printer` node.
+- **Protocol:** Sends a `CUPS-Get-Printers` IPP operation to `http://{host}:{port}/` (the CUPS root endpoint, no printer name required).
+- **Success:** `"Connected successfully (N printer(s) found)"` — 0 printers is treated as success.
+- **Failure:** `"Connection failed"` (any network or IPP error).
+
 ---
 
 ## Operation: Print Job
