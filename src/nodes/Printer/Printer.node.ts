@@ -1,6 +1,9 @@
 import { Printer as IppPrinter } from "ipp";
 import type {
+	ICredentialTestFunctions,
+	ICredentialsDecrypted,
 	IExecuteFunctions,
+	INodeCredentialTestResult,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
@@ -15,6 +18,7 @@ export interface IppResponse {
 		"job-state"?: string;
 		"job-state-reasons"?: string;
 	};
+	"printer-attributes-tag"?: Array<Record<string, unknown>>;
 }
 
 export interface IppPrinterInstance {
@@ -49,6 +53,7 @@ const nodeDescription: INodeTypeDescription = {
 		{
 			name: "ippApi",
 			required: true,
+			testedBy: "ippCredentialTest",
 		},
 	],
 	properties: [

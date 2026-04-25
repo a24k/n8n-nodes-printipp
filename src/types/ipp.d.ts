@@ -14,6 +14,7 @@ declare module "ipp" {
 		id?: number;
 		"operation-attributes-tag"?: Record<string, unknown>;
 		"job-attributes-tag"?: Record<string, unknown>;
+		"printer-attributes-tag"?: Array<Record<string, unknown>>;
 		"unsupported-attributes"?: unknown;
 	}
 
