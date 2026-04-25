@@ -1,19 +1,9 @@
-import type {
-	ICredentialTestRequest,
-	ICredentialType,
-	INodeProperties,
-} from "n8n-workflow";
+import type { ICredentialType, INodeProperties } from "n8n-workflow";
 
 export class IppApi implements ICredentialType {
 	name = "ippApi";
 	displayName = "IPP API";
 	documentationUrl = "https://github.com/a24k/n8n-nodes-printipp";
-	test: ICredentialTestRequest = {
-		request: {
-			baseURL: "=http://{{$credentials.host}}:{{$credentials.port}}",
-			url: "/",
-		},
-	};
 	properties: INodeProperties[] = [
 		{
 			displayName: "Host",
