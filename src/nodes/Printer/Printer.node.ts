@@ -1,7 +1,5 @@
 import { Printer as IppPrinter } from "ipp";
 import type {
-	ICredentialTestFunctions,
-	ICredentialsDecrypted,
 	IExecuteFunctions,
 	INodeCredentialTestResult,
 	INodeExecutionData,

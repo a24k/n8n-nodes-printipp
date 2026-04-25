@@ -4,10 +4,7 @@ import type {
 	IppPrinterFactory,
 	IppResponse,
 } from "../src/nodes/Printer/Printer.node";
-import {
-	Printer,
-	testIppConnection,
-} from "../src/nodes/Printer/Printer.node";
+import { Printer, testIppConnection } from "../src/nodes/Printer/Printer.node";
 
 function makeIppFactory(
 	handler: (
