@@ -48,6 +48,22 @@ npm publish --access public
 bun test
 ```
 
+## Build System
+
+`tsc --noEmit` performs type checking only. `bun build.mjs` uses Bun's native
+bundler to produce a single CJS file per entry point under `dist/`. The `ipp`
+package is bundled inline; only `n8n-workflow` is marked external (provided by
+n8n at runtime).
+
+This means `dist/nodes/Printer/Printer.node.js` is self-contained and works
+without a `node_modules/ipp` next to it — both in development (volume mount)
+and in production (npm install).
+
+```
+tsc --noEmit          type-check
+bun build.mjs         bundle → dist/
+```
+
 ## Architecture
 
 ```
@@ -82,21 +98,25 @@ The printer URI is constructed at runtime: `http://{host}:{port}/printers/{print
 
 ### ipp Package
 
-The node uses the [`ipp`](https://www.npmjs.com/package/ipp) npm package (v2.x) as a runtime dependency.
+The node uses the [`ipp`](https://www.npmjs.com/package/ipp) npm package (v2.x) as a runtime dependency. It is bundled into `dist/` via `bun build.mjs` so no separate install is needed at runtime.
 
-The package uses callbacks. Wrap in a `Promise`:
+The package uses callbacks. The node wraps them in a `Promise` via a local `executeIppJob` closure captured in the constructor. This pattern also enables dependency injection of a mock `IppPrinterFactory` in tests:
 
 ```typescript
-import ipp from "ipp";
+export type IppPrinterFactory = (url: string) => IppPrinterInstance;
 
-function printJob(printerUrl: string, message: object): Promise<object> {
-  return new Promise((resolve, reject) => {
-    const printer = ipp.Printer(printerUrl);
-    printer.execute("Print-Job", message, (err: Error | null, res: object) => {
-      if (err) reject(err);
-      else resolve(res);
+constructor(printerFactory: IppPrinterFactory = defaultPrinterFactory) {
+  const executeIppJob = (url: string, message: object): Promise<IppResponse> => {
+    const printer = printerFactory(url);
+    return new Promise((resolve, reject) => {
+      printer.execute("Print-Job", message, (err, res) => {
+        if (err) reject(err);
+        else resolve(res);
+      });
     });
-  });
+  };
+
+  this.execute = async function (this: IExecuteFunctions) { ... };
 }
 ```
 
@@ -125,11 +145,10 @@ const msg = {
 Read binary property from n8n item:
 
 ```typescript
-const binaryMeta = this.helpers.assertBinaryData(i, binaryProperty);
 const buffer = await this.helpers.getBinaryDataBuffer(i, binaryProperty);
 ```
 
-`document-format` defaults to `application/pdf`. If the binary item's `mimeType` differs, surface it as an advanced option.
+`document-format` defaults to `application/pdf` and can be overridden via Advanced Options.
 
 ### continueOnFail
 
