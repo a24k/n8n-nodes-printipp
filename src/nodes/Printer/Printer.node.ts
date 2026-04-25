@@ -34,6 +34,44 @@ export type IppPrinterFactory = (url: string) => IppPrinterInstance;
 const defaultPrinterFactory: IppPrinterFactory = (url) =>
 	IppPrinter(url) as unknown as IppPrinterInstance;
 
+export async function testIppConnection(
+	host: string,
+	port: number,
+	username: string,
+	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+): Promise<INodeCredentialTestResult> {
+	try {
+		const cupsUrl = `http://${host}:${port}/`;
+		const printer = printerFactory(cupsUrl);
+		const response = await new Promise<IppResponse>((resolve, reject) => {
+			printer.execute(
+				"CUPS-Get-Printers",
+				{
+					"operation-attributes-tag": {
+						"requesting-user-name": username,
+					},
+				},
+				(err, res) => {
+					if (err) reject(err);
+					else resolve(res);
+				},
+			);
+		});
+		const printerAttrs = response["printer-attributes-tag"];
+		const count = Array.isArray(printerAttrs) ? printerAttrs.length : 0;
+		const label = count === 1 ? "printer" : "printers";
+		return {
+			status: "OK",
+			message: `Connected successfully (${count} ${label} found)`,
+		};
+	} catch {
+		return {
+			status: "Error",
+			message: "Connection failed",
+		};
+	}
+}
+
 const nodeDescription: INodeTypeDescription = {
 	displayName: "Printer (IPP) @a24k",
 	name: "printer",
