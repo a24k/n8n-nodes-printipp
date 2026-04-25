@@ -91,6 +91,7 @@ const nodeDescription: INodeTypeDescription = {
 		{
 			name: "ippApi",
 			required: true,
+			testedBy: "ippCredentialTest",
 		},
 	],
 	properties: [
