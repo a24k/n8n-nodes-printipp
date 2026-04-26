@@ -196,6 +196,47 @@ const COLOR_MODE_DEFAULTS = [
 	{ name: "Auto (IPP General)", value: "auto" },
 ];
 
+async function listPrinterAttribute(
+	ctx: ILoadOptionsFunctions,
+	attrKey: keyof PrinterAttributes,
+	defaults: Array<{ name: string; value: string }>,
+	filter: string | undefined,
+	printerFactory: IppPrinterFactory,
+): Promise<INodeListSearchResult> {
+	const credentials = await ctx.getCredentials("printIpp");
+	const { host, port, username } = credentials as {
+		host: string;
+		port: number;
+		username: string;
+	};
+	const printerName = ctx.getCurrentNodeParameter("printerName", {
+		extractValue: true,
+	}) as string;
+
+	let items = defaults;
+	if (printerName) {
+		const attrs = await fetchPrinterAttributes(
+			host,
+			port,
+			printerName,
+			username,
+			printerFactory,
+		);
+		const supported = attrs?.[attrKey] ?? [];
+		if (supported.length > 0) {
+			items = supported.map((v) => ({ name: v, value: v }));
+		}
+	}
+
+	const results = filter
+		? items.filter((item) =>
+				item.name.toLowerCase().includes(filter.toLowerCase()),
+			)
+		: items;
+
+	return { results };
+}
+
 const nodeDescription: INodeTypeDescription = {
 	displayName: "PrintIPP @a24k",
 	name: "printIpp",
@@ -397,114 +438,39 @@ export class PrintIpp implements INodeType {
 					this: ILoadOptionsFunctions,
 					filter?: string,
 				): Promise<INodeListSearchResult> {
-					const credentials = await this.getCredentials("printIpp");
-					const { host, port, username } = credentials as {
-						host: string;
-						port: number;
-						username: string;
-					};
-					const printerName = this.getCurrentNodeParameter("printerName", {
-						extractValue: true,
-					}) as string;
-
-					let items = SIDES_DEFAULTS;
-					if (printerName) {
-						const attrs = await fetchPrinterAttributes(
-							host,
-							port,
-							printerName,
-							username,
-							printerFactory,
-						);
-						if (attrs && attrs.sidesSupported.length > 0) {
-							items = attrs.sidesSupported.map((v) => ({ name: v, value: v }));
-						}
-					}
-
-					const results = filter
-						? items.filter((item) =>
-								item.name.toLowerCase().includes(filter.toLowerCase()),
-							)
-						: items;
-
-					return { results };
+					return listPrinterAttribute(
+						this,
+						"sidesSupported",
+						SIDES_DEFAULTS,
+						filter,
+						printerFactory,
+					);
 				},
 
 				async getMediaOptions(
 					this: ILoadOptionsFunctions,
 					filter?: string,
 				): Promise<INodeListSearchResult> {
-					const credentials = await this.getCredentials("printIpp");
-					const { host, port, username } = credentials as {
-						host: string;
-						port: number;
-						username: string;
-					};
-					const printerName = this.getCurrentNodeParameter("printerName", {
-						extractValue: true,
-					}) as string;
-
-					let items = MEDIA_DEFAULTS;
-					if (printerName) {
-						const attrs = await fetchPrinterAttributes(
-							host,
-							port,
-							printerName,
-							username,
-							printerFactory,
-						);
-						if (attrs && attrs.mediaSupported.length > 0) {
-							items = attrs.mediaSupported.map((v) => ({ name: v, value: v }));
-						}
-					}
-
-					const results = filter
-						? items.filter((item) =>
-								item.name.toLowerCase().includes(filter.toLowerCase()),
-							)
-						: items;
-
-					return { results };
+					return listPrinterAttribute(
+						this,
+						"mediaSupported",
+						MEDIA_DEFAULTS,
+						filter,
+						printerFactory,
+					);
 				},
 
 				async getColorModeOptions(
 					this: ILoadOptionsFunctions,
 					filter?: string,
 				): Promise<INodeListSearchResult> {
-					const credentials = await this.getCredentials("printIpp");
-					const { host, port, username } = credentials as {
-						host: string;
-						port: number;
-						username: string;
-					};
-					const printerName = this.getCurrentNodeParameter("printerName", {
-						extractValue: true,
-					}) as string;
-
-					let items = COLOR_MODE_DEFAULTS;
-					if (printerName) {
-						const attrs = await fetchPrinterAttributes(
-							host,
-							port,
-							printerName,
-							username,
-							printerFactory,
-						);
-						if (attrs && attrs.colorModesSupported.length > 0) {
-							items = attrs.colorModesSupported.map((v) => ({
-								name: v,
-								value: v,
-							}));
-						}
-					}
-
-					const results = filter
-						? items.filter((item) =>
-								item.name.toLowerCase().includes(filter.toLowerCase()),
-							)
-						: items;
-
-					return { results };
+					return listPrinterAttribute(
+						this,
+						"colorModesSupported",
+						COLOR_MODE_DEFAULTS,
+						filter,
+						printerFactory,
+					);
 				},
 			},
 		};

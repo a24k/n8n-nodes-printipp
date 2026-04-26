@@ -799,6 +799,33 @@ describe("listSearch.getMediaOptions", () => {
 		const result = await getMediaOptions(node).call(ctx);
 		expect(result.results).toHaveLength(4);
 	});
+
+	it("falls back to IPP General defaults when printer returns empty media-supported", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": [],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getMediaOptions(node).call(ctx);
+		expect(result.results).toHaveLength(4);
+	});
+
+	it("filters results by name (case-insensitive)", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getMediaOptions(node).call(ctx, "letter");
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0].value).toBe("na_letter_8.5x11in");
+	});
 });
 
 describe("listSearch.getColorModeOptions", () => {
@@ -853,6 +880,33 @@ describe("listSearch.getColorModeOptions", () => {
 		});
 		const result = await getColorModeOptions(node).call(ctx);
 		expect(result.results).toHaveLength(3);
+	});
+
+	it("falls back to IPP General defaults when printer returns empty color-modes", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": [],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getColorModeOptions(node).call(ctx);
+		expect(result.results).toHaveLength(3);
+	});
+
+	it("filters results by name (case-insensitive)", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getColorModeOptions(node).call(ctx, "mono");
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0].value).toBe("monochrome");
 	});
 });
 
