@@ -107,7 +107,7 @@ const nodeDescription: INodeTypeDescription = {
 	usableAsTool: true,
 	credentials: [
 		{
-			name: "ippApi",
+			name: "printIpp",
 			required: true,
 			testedBy: "ippCredentialTest",
 		},
@@ -235,7 +235,7 @@ export class Printer implements INodeType {
 			const items = this.getInputData();
 			const returnData: INodeExecutionData[] = [];
 
-			const credentials = await this.getCredentials("ippApi");
+			const credentials = await this.getCredentials("printIpp");
 			const host = credentials.host as string;
 			const port = credentials.port as number;
 			const username = credentials.username as string;

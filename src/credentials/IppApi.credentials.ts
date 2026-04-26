@@ -1,8 +1,8 @@
 import type { ICredentialType, INodeProperties } from "n8n-workflow";
 
 export class IppApi implements ICredentialType {
-	name = "ippApi";
-	displayName = "IPP API";
+	name = "printIpp";
+	displayName = "PrintIPP";
 	documentationUrl = "https://github.com/a24k/n8n-nodes-printipp";
 	properties: INodeProperties[] = [
 		{
