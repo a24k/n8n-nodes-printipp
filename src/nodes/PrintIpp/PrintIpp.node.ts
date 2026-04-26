@@ -570,8 +570,15 @@ export class PrintIpp implements INodeType {
 						i,
 					) as string;
 					const copies = this.getNodeParameter("copies", i) as number;
-					const sides = this.getNodeParameter("sides", i) as string;
-					const media = this.getNodeParameter("media", i) as string;
+					const sides = this.getNodeParameter("sides", i, undefined, {
+						extractValue: true,
+					}) as string;
+					const media = this.getNodeParameter("media", i, undefined, {
+						extractValue: true,
+					}) as string;
+					const colorMode = this.getNodeParameter("colorMode", i, undefined, {
+						extractValue: true,
+					}) as string;
 					const advancedOptions = this.getNodeParameter(
 						"advancedOptions",
 						i,
@@ -601,6 +608,7 @@ export class PrintIpp implements INodeType {
 							copies,
 							sides,
 							media,
+							"print-color-mode": colorMode,
 						},
 						data: buffer,
 					};
@@ -615,6 +623,7 @@ export class PrintIpp implements INodeType {
 							"job-state": jobAttrs["job-state"],
 							"job-state-reasons": jobAttrs["job-state-reasons"],
 							"status-code": response.statusCode,
+							"print-color-mode": colorMode,
 						},
 						pairedItem: { item: i },
 					});

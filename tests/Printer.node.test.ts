@@ -75,6 +75,7 @@ function createMockExecuteFunctions(
 			if (paramName === "copies") return 1;
 			if (paramName === "sides") return "one-sided";
 			if (paramName === "media") return "iso_a4_210x297mm";
+			if (paramName === "colorMode") return "color";
 			if (paramName === "advancedOptions") return fallback ?? {};
 			return fallback ?? "";
 		},
@@ -215,6 +216,7 @@ describe("PrintIpp execute — successful print job", () => {
 			"job-state": "pending",
 			"job-state-reasons": "none",
 			"status-code": "successful-ok",
+			"print-color-mode": "color",
 		});
 	});
 
@@ -279,6 +281,7 @@ describe("PrintIpp execute — successful print job", () => {
 				if (param === "copies") return 3;
 				if (param === "sides") return "two-sided-long-edge";
 				if (param === "media") return "na_letter_8.5x11in";
+				if (param === "colorMode") return "monochrome";
 				if (param === "advancedOptions") return fallback ?? {};
 				return fallback ?? "";
 			},
@@ -291,6 +294,7 @@ describe("PrintIpp execute — successful print job", () => {
 		expect(jobAttrs.copies).toBe(3);
 		expect(jobAttrs.sides).toBe("two-sided-long-edge");
 		expect(jobAttrs.media).toBe("na_letter_8.5x11in");
+		expect(jobAttrs["print-color-mode"]).toBe("monochrome");
 	});
 
 	it("sends binary buffer as data", async () => {
