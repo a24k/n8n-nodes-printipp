@@ -316,29 +316,87 @@ const nodeDescription: INodeTypeDescription = {
 		{
 			displayName: "Sides",
 			name: "sides",
-			type: "options",
-			default: "one-sided",
-			options: [
-				{ name: "One-Sided", value: "one-sided" },
+			type: "resourceLocator",
+			required: false,
+			default: { mode: "list", value: "one-sided" },
+			description: "Duplex printing setting",
+			modes: [
 				{
-					name: "Two-Sided (Long Edge / Portrait)",
-					value: "two-sided-long-edge",
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getSidesOptions",
+						searchable: false,
+					},
 				},
 				{
-					name: "Two-Sided (Short Edge / Landscape)",
-					value: "two-sided-short-edge",
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "one-sided",
 				},
 			],
-			description: "Duplex printing setting",
 		},
 		{
 			displayName: "Media",
 			name: "media",
-			type: "string",
-			default: "iso_a4_210x297mm",
-			placeholder: "iso_a4_210x297mm",
+			type: "resourceLocator",
+			required: false,
+			default: { mode: "list", value: "iso_a4_210x297mm" },
 			description:
-				"IPP media keyword. Common values: iso_a4_210x297mm, na_letter_8.5x11in, iso_a3_297x420mm",
+				"IPP media keyword. Select from printer-supported sizes or enter a PWG media keyword manually.",
+			modes: [
+				{
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getMediaOptions",
+						searchable: true,
+						searchFilterRequired: false,
+					},
+				},
+				{
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "iso_a4_210x297mm",
+				},
+			],
+		},
+		{
+			displayName: "",
+			name: "printerAttributesNotice",
+			type: "notice",
+			default: "",
+			description:
+				"Select a printer in the Printer Name field to load printer-specific options. Showing IPP General defaults.",
+		},
+		{
+			displayName: "Color Mode",
+			name: "colorMode",
+			type: "resourceLocator",
+			required: false,
+			default: { mode: "list", value: "color" },
+			description: "Color printing mode",
+			modes: [
+				{
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getColorModeOptions",
+						searchable: false,
+					},
+				},
+				{
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "color",
+				},
+			],
 		},
 		{
 			displayName: "Advanced Options",

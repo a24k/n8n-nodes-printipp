@@ -137,6 +137,7 @@ describe("PrintIpp node description", () => {
 		expect(names).toContain("copies");
 		expect(names).toContain("sides");
 		expect(names).toContain("media");
+		expect(names).toContain("colorMode");
 		expect(names).toContain("advancedOptions");
 	});
 
@@ -159,15 +160,33 @@ describe("PrintIpp node description", () => {
 		expect(prop?.default).toBe("data");
 	});
 
-	it("sides has correct options", () => {
+	it("sides is resourceLocator with list and id modes", () => {
 		const node = new PrintIpp();
 		const prop = node.description.properties.find((p) => p.name === "sides");
-		const values = (prop?.options as Array<{ value: string }> | undefined)?.map(
-			(o) => o.value,
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
+	});
+
+	it("media is resourceLocator with list and id modes", () => {
+		const node = new PrintIpp();
+		const prop = node.description.properties.find((p) => p.name === "media");
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
+	});
+
+	it("colorMode is resourceLocator with list and id modes", () => {
+		const node = new PrintIpp();
+		const prop = node.description.properties.find(
+			(p) => p.name === "colorMode",
 		);
-		expect(values).toContain("one-sided");
-		expect(values).toContain("two-sided-long-edge");
-		expect(values).toContain("two-sided-short-edge");
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
 	});
 
 	it("advancedOptions contains jobName and documentFormat", () => {
