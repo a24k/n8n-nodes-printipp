@@ -58,6 +58,10 @@ export async function testIppConnection(
 			);
 		});
 		const printerAttrs = response["printer-attributes-tag"];
+		const statusCode = response.statusCode ?? "unknown";
+		const attrType = Array.isArray(printerAttrs)
+			? "array"
+			: typeof printerAttrs;
 		const count = Array.isArray(printerAttrs)
 			? printerAttrs.length
 			: printerAttrs != null
@@ -66,7 +70,7 @@ export async function testIppConnection(
 		if (count === 0) {
 			return {
 				status: "Error",
-				message: "Connection failed: no printers found",
+				message: `Connection failed: no printers found (status=${statusCode}, tag=${attrType})`,
 			};
 		}
 		return {
