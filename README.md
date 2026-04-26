@@ -24,13 +24,16 @@ The node appears as **Printer (IPP) @a24k** in the node palette.
 
 ## Credentials
 
-Create a new **IPP API** credential with:
+Create a new **PrintIPP Endpoint** credential with:
 
 | Field | Description | Default |
 |-------|-------------|---------|
+| Connection Type | Server type (`CUPS Server` only for now) | `CUPS Server` |
 | Host | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) | — |
 | Port | IPP port | `631` |
 | Username | Value sent as `requesting-user-name` | `n8n` |
+
+Use the **Test connection** button to verify connectivity before saving.
 
 The printer URI is constructed as `http://{host}:{port}/printers/{printerName}`.
 

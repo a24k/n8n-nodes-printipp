@@ -59,7 +59,7 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| Credential | `ippApi` | ✅ | — | Host, port, username |
+| Credential | `printIpp` | ✅ | — | Host, port, username |
 | Printer Name | `string` | ✅ | — | Printer queue name as registered in CUPS (e.g. `PX-M6010F`) |
 | Binary Property | `string` | ✅ | `data` | n8n binary property name containing the document to print |
 | Copies | `number` | — | `1` | Number of copies (IPP `copies` attribute) |

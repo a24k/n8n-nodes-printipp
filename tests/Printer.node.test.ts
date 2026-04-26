@@ -114,7 +114,7 @@ describe("Printer node description", () => {
 		expect(node.description.usableAsTool).toBe(true);
 	});
 
-	it("uses ippApi credential", () => {
+	it("uses printIpp credential", () => {
 		const node = new Printer();
 		const creds = node.description.credentials ?? [];
 		expect(creds.some((c) => c.name === "printIpp")).toBe(true);
