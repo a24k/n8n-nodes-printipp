@@ -17,7 +17,7 @@ In your n8n instance:
 3. Enter `@a24k/n8n-nodes-printipp`
 4. Click **Install**
 
-The node appears as **Printer (IPP) @a24k** in the node palette.
+The node appears as **PrintIPP @a24k** in the node palette.
 
 > Requires n8n 1.x or later.
 > To use as an AI Agent tool, set `N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true` on your n8n instance.
@@ -45,7 +45,7 @@ Sends a binary document to an IPP printer queue.
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| Printer Name | ✅ | — | Queue name as registered in CUPS (e.g. `PX-M6010F`) |
+| Printer Name | ✅ | — | Queue name. Select from the CUPS printer list (populated automatically) or type a name manually (e.g. `MyPrinter`). |
 | Binary Property | ✅ | `data` | n8n binary property name containing the document |
 | Copies | — | `1` | Number of copies |
 | Sides | — | `one-sided` | `one-sided` / `two-sided-long-edge` / `two-sided-short-edge` |
@@ -61,7 +61,7 @@ Sends a binary document to an IPP printer queue.
 ### Example workflow
 
 ```
-HTTP Request (download PDF) → Printer (IPP) @a24k
+HTTP Request (download PDF) → PrintIPP @a24k
 ```
 
 Set **Binary Property** to `data` (the default output property of the HTTP Request node).

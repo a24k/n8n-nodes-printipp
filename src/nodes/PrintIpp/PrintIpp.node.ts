@@ -8,8 +8,10 @@ import type {
 	ICredentialsDecrypted,
 	ICredentialTestFunctions,
 	IExecuteFunctions,
+	ILoadOptionsFunctions,
 	INodeCredentialTestResult,
 	INodeExecutionData,
+	INodeListSearchResult,
 	INodeType,
 	INodeTypeDescription,
 } from "n8n-workflow";
@@ -39,6 +41,47 @@ export type IppPrinterFactory = (url: string) => IppPrinterInstance;
 const defaultPrinterFactory: IppPrinterFactory = (url) =>
 	IppPrinter(url) as unknown as IppPrinterInstance;
 
+export interface CupsPrinterEntry {
+	name: string;
+	info?: string;
+}
+
+export async function fetchCupsPrinters(
+	host: string,
+	port: number,
+	username: string,
+	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+): Promise<CupsPrinterEntry[]> {
+	const cupsUrl = `http://${host}:${port}/`;
+	const printer = printerFactory(cupsUrl);
+	const response = await new Promise<IppResponse>((resolve, reject) => {
+		printer.execute(
+			"CUPS-Get-Printers",
+			{
+				"operation-attributes-tag": {
+					"requesting-user-name": username,
+				},
+			},
+			(err, res) => {
+				if (err) reject(err);
+				else resolve(res);
+			},
+		);
+	});
+
+	const printerAttrs = response["printer-attributes-tag"];
+	if (!printerAttrs) return [];
+
+	const attrList: Array<Record<string, unknown>> = Array.isArray(printerAttrs)
+		? printerAttrs
+		: [printerAttrs as unknown as Record<string, unknown>];
+
+	return attrList.map((attrs) => ({
+		name: attrs["printer-name"] as string,
+		info: attrs["printer-info"] as string | undefined,
+	}));
+}
+
 export async function testCupsConnection(
 	host: string,
 	port: number,
@@ -46,36 +89,17 @@ export async function testCupsConnection(
 	printerFactory: IppPrinterFactory = defaultPrinterFactory,
 ): Promise<INodeCredentialTestResult> {
 	try {
-		const cupsUrl = `http://${host}:${port}/`;
-		const printer = printerFactory(cupsUrl);
-		const response = await new Promise<IppResponse>((resolve, reject) => {
-			printer.execute(
-				"CUPS-Get-Printers",
-				{
-					"operation-attributes-tag": {
-						"requesting-user-name": username,
-					},
-				},
-				(err, res) => {
-					if (err) reject(err);
-					else resolve(res);
-				},
-			);
-		});
-		const printerAttrs = response["printer-attributes-tag"];
-		const statusCode = response.statusCode ?? "unknown";
-		const attrType = Array.isArray(printerAttrs)
-			? "array"
-			: typeof printerAttrs;
-		const count = Array.isArray(printerAttrs)
-			? printerAttrs.length
-			: printerAttrs != null
-				? 1
-				: 0;
+		const printers = await fetchCupsPrinters(
+			host,
+			port,
+			username,
+			printerFactory,
+		);
+		const count = printers.length;
 		if (count === 0) {
 			return {
 				status: "Error",
-				message: `Connection failed: no printers found (status=${statusCode}, tag=${attrType})`,
+				message: "Connection failed: no printers found",
 			};
 		}
 		return {
@@ -91,16 +115,16 @@ export async function testCupsConnection(
 }
 
 const nodeDescription: INodeTypeDescription = {
-	displayName: "Printer (IPP) @a24k",
-	name: "printer",
-	icon: "file:printer.svg",
+	displayName: "PrintIPP @a24k",
+	name: "printIpp",
+	icon: "file:printipp.svg",
 	group: ["output"],
 	version: 1,
 	subtitle: "Print Job",
 	description:
 		"Send print jobs to IPP-capable printers (CUPS or direct IPP) without system-level lp/lpr dependencies",
 	defaults: {
-		name: "Printer",
+		name: "PrintIPP",
 	},
 	inputs: [NodeConnectionTypes.Main],
 	outputs: [NodeConnectionTypes.Main],
@@ -109,18 +133,45 @@ const nodeDescription: INodeTypeDescription = {
 		{
 			name: "printIpp",
 			required: true,
-			testedBy: "ippCredentialTest",
+			testedBy: "printIppCredentialTest",
 		},
 	],
 	properties: [
 		{
 			displayName: "Printer Name",
 			name: "printerName",
-			type: "string",
+			type: "resourceLocator",
 			required: true,
-			default: "",
-			placeholder: "PX-M6010F",
-			description: "Printer queue name as registered in CUPS (e.g. PX-M6010F)",
+			default: { mode: "id", value: "" },
+			description: "Printer queue name as registered on the CUPS server",
+			modes: [
+				{
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getCupsPrinters",
+						searchable: true,
+						searchFilterRequired: false,
+					},
+				},
+				{
+					displayName: "By Name",
+					name: "id",
+					type: "string",
+					placeholder: "MyPrinter",
+					validation: [
+						{
+							type: "regex",
+							properties: {
+								regex: "^[\\w./-]+$",
+								errorMessage:
+									"Printer name may only contain letters, numbers, hyphens, underscores, dots, and slashes",
+							},
+						},
+					],
+				},
+			],
 		},
 		{
 			displayName: "Binary Property",
@@ -192,37 +243,76 @@ const nodeDescription: INodeTypeDescription = {
 	],
 };
 
-export class Printer implements INodeType {
+export class PrintIpp implements INodeType {
 	description: INodeTypeDescription = nodeDescription;
 
-	methods = {
-		credentialTest: {
-			async ippCredentialTest(
-				this: ICredentialTestFunctions,
-				credential: ICredentialsDecrypted,
-			): Promise<INodeCredentialTestResult> {
-				const { host, port, username, connectionType } = credential.data as {
-					host: string;
-					port: number;
-					username: string;
-					connectionType: string;
-				};
-				if (connectionType === "cups") {
-					return testCupsConnection(host, port, username);
-				}
-				return {
-					status: "Error",
-					message: `Unsupported connection type: ${connectionType}`,
-				};
-			},
-		},
-	};
-
-	// Assigned in the constructor so printerFactory is captured via closure,
-	// while `this` inside is the IExecuteFunctions context provided by n8n.
+	// methods and execute are assigned in the constructor so printerFactory is
+	// captured via closure (enables DI for tests without changing the n8n API surface).
+	methods: INodeType["methods"];
 	execute: (this: IExecuteFunctions) => Promise<INodeExecutionData[][]>;
 
 	constructor(printerFactory: IppPrinterFactory = defaultPrinterFactory) {
+		this.methods = {
+			credentialTest: {
+				async printIppCredentialTest(
+					this: ICredentialTestFunctions,
+					credential: ICredentialsDecrypted,
+				): Promise<INodeCredentialTestResult> {
+					const { host, port, username, connectionType } = credential.data as {
+						host: string;
+						port: number;
+						username: string;
+						connectionType: string;
+					};
+					if (connectionType === "cups") {
+						return testCupsConnection(host, port, username);
+					}
+					return {
+						status: "Error",
+						message: `Unsupported connection type: ${connectionType}`,
+					};
+				},
+			},
+			listSearch: {
+				async getCupsPrinters(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					const credentials = await this.getCredentials("printIpp");
+					const { host, port, username, connectionType } = credentials as {
+						host: string;
+						port: number;
+						username: string;
+						connectionType: string;
+					};
+
+					if (connectionType !== "cups") {
+						return { results: [] };
+					}
+
+					const printers = await fetchCupsPrinters(
+						host,
+						port,
+						username,
+						printerFactory,
+					);
+					const results = printers
+						.filter(
+							(p) =>
+								!filter ||
+								p.name.toLowerCase().includes(filter.toLowerCase()) ||
+								(p.info ?? "").toLowerCase().includes(filter.toLowerCase()),
+						)
+						.map((p) => ({
+							name: p.info ? `${p.name} (${p.info})` : p.name,
+							value: p.name,
+						}));
+
+					return { results };
+				},
+			},
+		};
+
 		const executeIppJob = (
 			printerUrl: string,
 			message: object,
@@ -249,7 +339,12 @@ export class Printer implements INodeType {
 
 			for (let i = 0; i < items.length; i++) {
 				try {
-					const printerName = this.getNodeParameter("printerName", i) as string;
+					const printerName = this.getNodeParameter(
+						"printerName",
+						i,
+						undefined,
+						{ extractValue: true },
+					) as string;
 					const binaryProperty = this.getNodeParameter(
 						"binaryProperty",
 						i,

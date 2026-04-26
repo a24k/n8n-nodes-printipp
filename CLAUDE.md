@@ -55,7 +55,7 @@ bundler to produce a single CJS file per entry point under `dist/`. The `ipp`
 package is bundled inline; only `n8n-workflow` is marked external (provided by
 n8n at runtime).
 
-This means `dist/nodes/Printer/Printer.node.js` is self-contained and works
+This means `dist/nodes/PrintIpp/PrintIpp.node.js` is self-contained and works
 without a `node_modules/ipp` next to it — both in development (volume mount)
 and in production (npm install).
 
@@ -69,11 +69,11 @@ bun build.mjs         bundle → dist/
 ```
 src/
   nodes/
-    Printer/
-      Printer.node.ts       # Main node definition
-      printer.svg           # Node icon
+    PrintIpp/
+      PrintIpp.node.ts      # Main node definition
+      printipp.svg          # Node icon
   credentials/
-    IppApi.credentials.ts   # host, port, username
+    PrintIpp.credentials.ts # host, port, username
 dist/                       # Compiled output (generated, do not edit)
 docs/
   requirements.md
@@ -84,7 +84,7 @@ docs/
 
 ### Credential
 
-Define the `printIpp` credential type in `src/credentials/IppApi.credentials.ts` (display name: **PrintIPP Endpoint**).
+Define the `printIpp` credential type in `src/credentials/PrintIpp.credentials.ts` (display name: **PrintIPP Endpoint**).
 
 Fields:
 
@@ -167,8 +167,8 @@ Set `usableAsTool: true` in the node description.
   "keywords": ["n8n-community-node-package"],
   "n8n": {
     "n8nNodesApiVersion": 1,
-    "nodes": ["dist/nodes/Printer/Printer.node.js"],
-    "credentials": ["dist/credentials/IppApi.credentials.js"]
+    "nodes": ["dist/nodes/PrintIpp/PrintIpp.node.js"],
+    "credentials": ["dist/credentials/PrintIpp.credentials.js"]
   },
   "dependencies": {
     "ipp": "^2.0.1"

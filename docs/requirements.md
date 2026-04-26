@@ -10,7 +10,7 @@ It is updated incrementally as draft stories are completed and merged.
 | Item | Value |
 |------|-------|
 | Package name | `@a24k/n8n-nodes-printipp` |
-| Display name | `Printer (IPP) @a24k` |
+| Display name | `PrintIPP @a24k` |
 | npm keyword | `n8n-community-node-package` |
 | Target n8n version | 1.x and above |
 | Runtime dependencies | `ipp` ^2.0.1 (pure-JS IPP implementation, no system deps) |
@@ -24,7 +24,7 @@ It is updated incrementally as draft stories are completed and merged.
 
 ## Credential: `printIpp`
 
-Defined in `src/credentials/IppApi.credentials.ts`. Display name: **PrintIPP Endpoint**.
+Defined in `src/credentials/PrintIpp.credentials.ts`. Display name: **PrintIPP Endpoint**.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -39,11 +39,27 @@ The printer URI is constructed at runtime as `http://{host}:{port}/printers/{pri
 
 A "Test connection" button is available in the credential UI.
 
-- **Implementation:** `testedBy: "ippCredentialTest"` in the node description wires the button to `methods.credentialTest.ippCredentialTest` on the `Printer` node. The handler dispatches to `testCupsConnection()` based on `connectionType`.
+- **Implementation:** `testedBy: "printIppCredentialTest"` in the node description wires the button to `methods.credentialTest.printIppCredentialTest` on the `PrintIpp` node. The handler dispatches to `testCupsConnection()` based on `connectionType`.
 - **Protocol (CUPS):** Sends a `CUPS-Get-Printers` IPP operation to `http://{host}:{port}/` (the CUPS root endpoint, no printer name required). `CUPS-Get-Printers` (op code `0x4002`) is a CUPS extension not present in the `ipp` package's standard operations table and is registered at module load time via monkey-patch.
 - **Success:** Connection established and at least 1 printer found. n8n displays `"Connection tested successfully"` (n8n hardcodes this message for all OK results).
-- **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but returned 0 printers.
+- **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but the printer list was empty.
 - **Failure (network/IPP error):** `"Connection failed"` (any network or IPP error).
+
+### Printer List (CUPS dropdown)
+
+When `connectionType === "cups"`, the Printer Name field supports dynamic discovery via `methods.listSearch.getCupsPrinters`:
+
+- Sends `CUPS-Get-Printers` to the configured CUPS root endpoint.
+- Returns printer entries as `{ name, value }` where `name` is `printer-name (printer-info)` (or `printer-name` alone if no info) and `value` is `printer-name`.
+- Supports optional `filter` argument (case-insensitive substring match on name or info).
+- If `connectionType` is not `cups`, returns an empty list.
+- Implemented via the `fetchCupsPrinters(host, port, username, factory)` helper (also used by `testCupsConnection`).
+
+The `printerName` field uses `type: "resourceLocator"` with two modes:
+- **From List** (`list` mode): dropdown populated by `getCupsPrinters`, searchable.
+- **By Name** (`id` mode): free-text input with placeholder `MyPrinter`; allows manual entry when the CUPS server is unreachable from the n8n editor or when the queue name is known in advance.
+
+At runtime, `execute` reads the value using `{ extractValue: true }` so both modes resolve to a plain queue name string.
 
 ---
 
@@ -60,7 +76,7 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | Credential | `printIpp` | ✅ | — | Host, port, username |
-| Printer Name | `string` | ✅ | — | Printer queue name as registered in CUPS (e.g. `PX-M6010F`) |
+| Printer Name | `resourceLocator` | ✅ | — | Printer queue name as registered on the CUPS server. Select from list (populated via `CUPS-Get-Printers`) or enter a queue name manually. |
 | Binary Property | `string` | ✅ | `data` | n8n binary property name containing the document to print |
 | Copies | `number` | — | `1` | Number of copies (IPP `copies` attribute) |
 | Sides | `options` | — | `one-sided` | Duplex setting (see values below) |
@@ -167,6 +183,5 @@ The `ipp` package encodes the IPP binary message and handles the HTTP transport 
 - TLS/IPPS support (`ipps://` scheme)
 - Get-Printer-Attributes operation (printer capability discovery)
 - Cancel-Job operation
-- Printer queue dropdown (dynamic population from CUPS API)
 - Multiple document support (multi-page job from separate binary items)
 - Authentication (HTTP Basic / Kerberos for CUPS)

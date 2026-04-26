@@ -11,12 +11,12 @@ const shared = {
 const results = await Promise.all([
 	Bun.build({
 		...shared,
-		entrypoints: ["src/nodes/Printer/Printer.node.ts"],
-		outdir: "dist/nodes/Printer",
+		entrypoints: ["src/nodes/PrintIpp/PrintIpp.node.ts"],
+		outdir: "dist/nodes/PrintIpp",
 	}),
 	Bun.build({
 		...shared,
-		entrypoints: ["src/credentials/IppApi.credentials.ts"],
+		entrypoints: ["src/credentials/PrintIpp.credentials.ts"],
 		outdir: "dist/credentials",
 	}),
 ]);
@@ -28,11 +28,11 @@ for (const result of results) {
 	}
 }
 
-mkdirSync("dist/nodes/Printer", { recursive: true });
-copyFileSync("src/nodes/Printer/printer.svg", "dist/nodes/Printer/printer.svg");
+mkdirSync("dist/nodes/PrintIpp", { recursive: true });
+copyFileSync("src/nodes/PrintIpp/printipp.svg", "dist/nodes/PrintIpp/printipp.svg");
 copyFileSync(
-	"src/nodes/Printer/Printer.node.json",
-	"dist/nodes/Printer/Printer.node.json",
+	"src/nodes/PrintIpp/PrintIpp.node.json",
+	"dist/nodes/PrintIpp/PrintIpp.node.json",
 );
 
 console.log("Build complete.");

@@ -1,10 +1,18 @@
 import { describe, expect, it } from "bun:test";
-import type { IExecuteFunctions, INodeExecutionData } from "n8n-workflow";
+import type {
+	IExecuteFunctions,
+	ILoadOptionsFunctions,
+	INodeExecutionData,
+} from "n8n-workflow";
 import type {
 	IppPrinterFactory,
 	IppResponse,
-} from "../src/nodes/Printer/Printer.node";
-import { Printer, testCupsConnection } from "../src/nodes/Printer/Printer.node";
+} from "../src/nodes/PrintIpp/PrintIpp.node";
+import {
+	fetchCupsPrinters,
+	PrintIpp,
+	testCupsConnection,
+} from "../src/nodes/PrintIpp/PrintIpp.node";
 
 function makeIppFactory(
 	handler: (
@@ -87,8 +95,8 @@ function createMockExecuteFunctions(
 		getCredentials:
 			merged.getCredentials as IExecuteFunctions["getCredentials"],
 		getNode: () => ({
-			name: "Printer",
-			type: "printer",
+			name: "PrintIPP",
+			type: "printIpp",
 			typeVersion: 1,
 			position: [0, 0] as [number, number],
 			id: "node-1",
@@ -102,26 +110,26 @@ function createMockExecuteFunctions(
 	} as unknown as IExecuteFunctions;
 }
 
-describe("Printer node description", () => {
+describe("PrintIpp node description", () => {
 	it("has correct name and display name", () => {
-		const node = new Printer();
-		expect(node.description.name).toBe("printer");
-		expect(node.description.displayName).toBe("Printer (IPP) @a24k");
+		const node = new PrintIpp();
+		expect(node.description.name).toBe("printIpp");
+		expect(node.description.displayName).toBe("PrintIPP @a24k");
 	});
 
 	it("sets usableAsTool to true", () => {
-		const node = new Printer();
+		const node = new PrintIpp();
 		expect(node.description.usableAsTool).toBe(true);
 	});
 
 	it("uses printIpp credential", () => {
-		const node = new Printer();
+		const node = new PrintIpp();
 		const creds = node.description.credentials ?? [];
 		expect(creds.some((c) => c.name === "printIpp")).toBe(true);
 	});
 
 	it("has required properties", () => {
-		const node = new Printer();
+		const node = new PrintIpp();
 		const names = node.description.properties.map((p) => p.name);
 		expect(names).toContain("printerName");
 		expect(names).toContain("binaryProperty");
@@ -131,8 +139,19 @@ describe("Printer node description", () => {
 		expect(names).toContain("advancedOptions");
 	});
 
+	it("printerName is resourceLocator with list and id modes", () => {
+		const node = new PrintIpp();
+		const prop = node.description.properties.find(
+			(p) => p.name === "printerName",
+		);
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
+	});
+
 	it("binaryProperty defaults to 'data'", () => {
-		const node = new Printer();
+		const node = new PrintIpp();
 		const prop = node.description.properties.find(
 			(p) => p.name === "binaryProperty",
 		);
@@ -140,7 +159,7 @@ describe("Printer node description", () => {
 	});
 
 	it("sides has correct options", () => {
-		const node = new Printer();
+		const node = new PrintIpp();
 		const prop = node.description.properties.find((p) => p.name === "sides");
 		const values = (prop?.options as Array<{ value: string }> | undefined)?.map(
 			(o) => o.value,
@@ -151,7 +170,7 @@ describe("Printer node description", () => {
 	});
 
 	it("advancedOptions contains jobName and documentFormat", () => {
-		const node = new Printer();
+		const node = new PrintIpp();
 		const prop = node.description.properties.find(
 			(p) => p.name === "advancedOptions",
 		);
@@ -163,10 +182,10 @@ describe("Printer node description", () => {
 	});
 });
 
-describe("Printer execute — successful print job", () => {
+describe("PrintIpp execute — successful print job", () => {
 	it("returns job fields from IPP response", async () => {
 		const ctx = createMockExecuteFunctions({});
-		const node = new Printer(successFactory(42));
+		const node = new PrintIpp(successFactory(42));
 		const result = await node.execute.call(ctx);
 
 		expect(result[0]).toHaveLength(1);
@@ -196,7 +215,7 @@ describe("Printer execute — successful print job", () => {
 				username: "n8n",
 			}),
 		});
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		await node.execute.call(ctx);
 
 		expect(capturedUrls[0]).toBe("http://myprinter:9631/printers/TestPrinter");
@@ -213,7 +232,7 @@ describe("Printer execute — successful print job", () => {
 		});
 
 		const ctx = createMockExecuteFunctions({});
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		await node.execute.call(ctx);
 
 		const msg = capturedMessages[0] as Record<string, unknown>;
@@ -244,7 +263,7 @@ describe("Printer execute — successful print job", () => {
 				return fallback ?? "";
 			},
 		});
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		await node.execute.call(ctx);
 
 		const msg = capturedMessages[0] as Record<string, unknown>;
@@ -268,7 +287,7 @@ describe("Printer execute — successful print job", () => {
 		const ctx = createMockExecuteFunctions({
 			getBinaryDataBuffer: async () => pdfBytes,
 		});
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		await node.execute.call(ctx);
 
 		const msg = capturedMessages[0] as Record<string, unknown>;
@@ -297,7 +316,7 @@ describe("Printer execute — successful print job", () => {
 				return fallback ?? "";
 			},
 		});
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		await node.execute.call(ctx);
 
 		const msg = capturedMessages[0] as Record<string, unknown>;
@@ -323,7 +342,7 @@ describe("Printer execute — successful print job", () => {
 				return Buffer.from("PDF");
 			},
 		});
-		const node = new Printer(successFactory());
+		const node = new PrintIpp(successFactory());
 		await node.execute.call(ctx);
 		expect(requestedProps).toEqual(["myPdf"]);
 	});
@@ -345,7 +364,7 @@ describe("Printer execute — successful print job", () => {
 			getInputData: () =>
 				[{ json: { n: 1 } }, { json: { n: 2 } }] as INodeExecutionData[],
 		});
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		const result = await node.execute.call(ctx);
 
 		expect(result[0]).toHaveLength(2);
@@ -353,18 +372,18 @@ describe("Printer execute — successful print job", () => {
 	});
 });
 
-describe("Printer execute — error handling", () => {
+describe("PrintIpp execute — error handling", () => {
 	it("rethrows when continueOnFail is false", async () => {
 		const factory = makeIppFactory(() => new Error("IPP connection refused"));
 		const ctx = createMockExecuteFunctions({ continueOnFail: () => false });
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		await expect(node.execute.call(ctx)).rejects.toThrow();
 	});
 
 	it("returns error json when continueOnFail is true", async () => {
 		const factory = makeIppFactory(() => new Error("IPP connection refused"));
 		const ctx = createMockExecuteFunctions({ continueOnFail: () => true });
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		const result = await node.execute.call(ctx);
 		expect(result[0][0].json.error).toBe("IPP connection refused");
 	});
@@ -384,7 +403,7 @@ describe("Printer execute — error handling", () => {
 			continueOnFail: () => true,
 			getInputData: () => [{ json: {} }, { json: {} }] as INodeExecutionData[],
 		});
-		const node = new Printer(factory);
+		const node = new PrintIpp(factory);
 		const result = await node.execute.call(ctx);
 
 		expect(result[0]).toHaveLength(2);
@@ -393,10 +412,10 @@ describe("Printer execute — error handling", () => {
 	});
 });
 
-describe("Printer credentialTest wiring", () => {
-	it("exposes ippCredentialTest in methods.credentialTest", () => {
-		const node = new Printer();
-		expect(typeof node.methods?.credentialTest?.ippCredentialTest).toBe(
+describe("PrintIpp credentialTest wiring", () => {
+	it("exposes printIppCredentialTest in methods.credentialTest", () => {
+		const node = new PrintIpp();
+		expect(typeof node.methods?.credentialTest?.printIppCredentialTest).toBe(
 			"function",
 		);
 	});
@@ -461,5 +480,159 @@ describe("testCupsConnection (CUPS-specific credential test)", () => {
 		const result = await testCupsConnection("cupsd", 631, "n8n", factory);
 		expect(result.status).toBe("Error");
 		expect(result.message).toBe("Connection failed");
+	});
+});
+
+describe("fetchCupsPrinters", () => {
+	it("maps printer-name and printer-info from attrs", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [
+				{ "printer-name": "Office-Laser", "printer-info": "3rd Floor Printer" },
+				{ "printer-name": "MyPrinter" },
+			],
+		}));
+		const result = await fetchCupsPrinters("cupsd", 631, "n8n", factory);
+		expect(result).toHaveLength(2);
+		expect(result[0]).toEqual({
+			name: "Office-Laser",
+			info: "3rd Floor Printer",
+		});
+		expect(result[1]).toEqual({ name: "MyPrinter", info: undefined });
+	});
+
+	it("returns empty array when printer-attributes-tag is absent", async () => {
+		const factory = makeIppFactory(() => ({ statusCode: "successful-ok" }));
+		const result = await fetchCupsPrinters("cupsd", 631, "n8n", factory);
+		expect(result).toEqual([]);
+	});
+
+	it("wraps single object response in array", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"printer-name": "solo",
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await fetchCupsPrinters("cupsd", 631, "n8n", factory);
+		expect(result).toHaveLength(1);
+		expect(result[0].name).toBe("solo");
+	});
+});
+
+function createMockLoadOptionsFunctions(
+	credentialsOverride?: Partial<{
+		host: string;
+		port: number;
+		username: string;
+		connectionType: string;
+	}>,
+): ILoadOptionsFunctions {
+	const credentials = {
+		host: "cupsd",
+		port: 631,
+		username: "n8n",
+		connectionType: "cups",
+		...credentialsOverride,
+	};
+	return {
+		getCredentials: async (_name: string) => credentials,
+	} as unknown as ILoadOptionsFunctions;
+}
+
+describe("listSearch.getCupsPrinters", () => {
+	it("returns mapped results from CUPS", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [
+				{ "printer-name": "Office-Laser", "printer-info": "3rd Floor" },
+				{ "printer-name": "MyPrinter" },
+			],
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions();
+		const result = await node.methods!.listSearch!.getCupsPrinters.call(ctx);
+		expect(result.results).toHaveLength(2);
+		expect(result.results[0]).toEqual({
+			name: "Office-Laser (3rd Floor)",
+			value: "Office-Laser",
+		});
+		expect(result.results[1]).toEqual({
+			name: "MyPrinter",
+			value: "MyPrinter",
+		});
+	});
+
+	it("filters results by printer name (case-insensitive)", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [
+				{ "printer-name": "Office-Laser" },
+				{ "printer-name": "MyPrinter" },
+				{ "printer-name": "office-color" },
+			],
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions();
+		const result = await node.methods!.listSearch!.getCupsPrinters.call(
+			ctx,
+			"office",
+		);
+		expect(result.results).toHaveLength(2);
+		expect(result.results.map((r) => r.value)).toEqual([
+			"Office-Laser",
+			"office-color",
+		]);
+	});
+
+	it("filters results by printer-info", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [
+				{ "printer-name": "LP1", "printer-info": "3rd Floor Color" },
+				{ "printer-name": "LP2", "printer-info": "Basement B&W" },
+			],
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions();
+		const result = await node.methods!.listSearch!.getCupsPrinters.call(
+			ctx,
+			"color",
+		);
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0].value).toBe("LP1");
+	});
+
+	it("returns empty results when connectionType is not cups", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [{ "printer-name": "LP1" }],
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions({ connectionType: "direct" });
+		const result = await node.methods!.listSearch!.getCupsPrinters.call(ctx);
+		expect(result.results).toEqual([]);
+	});
+
+	it("reads credentials using the printIpp credential name", async () => {
+		const capturedNames: string[] = [];
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [],
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = {
+			getCredentials: async (name: string) => {
+				capturedNames.push(name);
+				return {
+					host: "cupsd",
+					port: 631,
+					username: "n8n",
+					connectionType: "cups",
+				};
+			},
+		} as unknown as ILoadOptionsFunctions;
+		await node.methods!.listSearch!.getCupsPrinters.call(ctx);
+		expect(capturedNames).toEqual(["printIpp"]);
 	});
 });
