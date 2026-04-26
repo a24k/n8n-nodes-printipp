@@ -10,6 +10,7 @@ import type {
 } from "../src/nodes/PrintIpp/PrintIpp.node";
 import {
 	fetchCupsPrinters,
+	fetchPrinterAttributes,
 	PrintIpp,
 	testCupsConnection,
 } from "../src/nodes/PrintIpp/PrintIpp.node";
@@ -74,6 +75,7 @@ function createMockExecuteFunctions(
 			if (paramName === "copies") return 1;
 			if (paramName === "sides") return "one-sided";
 			if (paramName === "media") return "iso_a4_210x297mm";
+			if (paramName === "colorMode") return "color";
 			if (paramName === "advancedOptions") return fallback ?? {};
 			return fallback ?? "";
 		},
@@ -136,6 +138,7 @@ describe("PrintIpp node description", () => {
 		expect(names).toContain("copies");
 		expect(names).toContain("sides");
 		expect(names).toContain("media");
+		expect(names).toContain("colorMode");
 		expect(names).toContain("advancedOptions");
 	});
 
@@ -158,15 +161,33 @@ describe("PrintIpp node description", () => {
 		expect(prop?.default).toBe("data");
 	});
 
-	it("sides has correct options", () => {
+	it("sides is resourceLocator with list and id modes", () => {
 		const node = new PrintIpp();
 		const prop = node.description.properties.find((p) => p.name === "sides");
-		const values = (prop?.options as Array<{ value: string }> | undefined)?.map(
-			(o) => o.value,
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
+	});
+
+	it("media is resourceLocator with list and id modes", () => {
+		const node = new PrintIpp();
+		const prop = node.description.properties.find((p) => p.name === "media");
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
+	});
+
+	it("colorMode is resourceLocator with list and id modes", () => {
+		const node = new PrintIpp();
+		const prop = node.description.properties.find(
+			(p) => p.name === "colorMode",
 		);
-		expect(values).toContain("one-sided");
-		expect(values).toContain("two-sided-long-edge");
-		expect(values).toContain("two-sided-short-edge");
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
 	});
 
 	it("advancedOptions contains jobName and documentFormat", () => {
@@ -195,6 +216,7 @@ describe("PrintIpp execute — successful print job", () => {
 			"job-state": "pending",
 			"job-state-reasons": "none",
 			"status-code": "successful-ok",
+			"print-color-mode": "color",
 		});
 	});
 
@@ -259,6 +281,7 @@ describe("PrintIpp execute — successful print job", () => {
 				if (param === "copies") return 3;
 				if (param === "sides") return "two-sided-long-edge";
 				if (param === "media") return "na_letter_8.5x11in";
+				if (param === "colorMode") return "monochrome";
 				if (param === "advancedOptions") return fallback ?? {};
 				return fallback ?? "";
 			},
@@ -271,6 +294,67 @@ describe("PrintIpp execute — successful print job", () => {
 		expect(jobAttrs.copies).toBe(3);
 		expect(jobAttrs.sides).toBe("two-sided-long-edge");
 		expect(jobAttrs.media).toBe("na_letter_8.5x11in");
+		expect(jobAttrs["print-color-mode"]).toBe("monochrome");
+		expect(jobAttrs.Ink).toBe("MONO");
+	});
+
+	it("sends Ink=COLOR when colorMode is color", async () => {
+		const capturedMessages: object[] = [];
+		const factory = makeIppFactory((_url, _op, message) => {
+			capturedMessages.push(message);
+			return {
+				statusCode: "successful-ok",
+				"job-attributes-tag": {
+					"job-id": 1,
+					"job-uri": "",
+					"job-state": "pending",
+					"job-state-reasons": "none",
+				},
+			};
+		});
+		const ctx = createMockExecuteFunctions({});
+		const node = new PrintIpp(factory);
+		await node.execute.call(ctx);
+		const jobAttrs = (capturedMessages[0] as Record<string, unknown>)[
+			"job-attributes-tag"
+		] as Record<string, unknown>;
+		expect(jobAttrs["print-color-mode"]).toBe("color");
+		expect(jobAttrs.Ink).toBe("COLOR");
+	});
+
+	it("does not send Ink for non-color/monochrome modes", async () => {
+		const capturedMessages: object[] = [];
+		const factory = makeIppFactory((_url, _op, message) => {
+			capturedMessages.push(message);
+			return {
+				statusCode: "successful-ok",
+				"job-attributes-tag": {
+					"job-id": 1,
+					"job-uri": "",
+					"job-state": "pending",
+					"job-state-reasons": "none",
+				},
+			};
+		});
+		const ctx = createMockExecuteFunctions({
+			getNodeParameter: (param, _i, fallback) => {
+				if (param === "printerName") return "TestPrinter";
+				if (param === "binaryProperty") return "data";
+				if (param === "copies") return 1;
+				if (param === "sides") return "one-sided";
+				if (param === "media") return "iso_a4_210x297mm";
+				if (param === "colorMode") return "auto";
+				if (param === "advancedOptions") return fallback ?? {};
+				return fallback ?? "";
+			},
+		});
+		const node = new PrintIpp(factory);
+		await node.execute.call(ctx);
+		const jobAttrs = (capturedMessages[0] as Record<string, unknown>)[
+			"job-attributes-tag"
+		] as Record<string, unknown>;
+		expect(jobAttrs["print-color-mode"]).toBe("auto");
+		expect(jobAttrs.Ink).toBeUndefined();
 	});
 
 	it("sends binary buffer as data", async () => {
@@ -527,6 +611,7 @@ function createMockLoadOptionsFunctions(
 		username: string;
 		connectionType: string;
 	}>,
+	currentNodeParams?: Record<string, unknown>,
 ): ILoadOptionsFunctions {
 	const credentials = {
 		host: "cupsd",
@@ -535,14 +620,34 @@ function createMockLoadOptionsFunctions(
 		connectionType: "cups",
 		...credentialsOverride,
 	};
+	const nodeParams = currentNodeParams ?? {};
 	return {
 		getCredentials: async (_name: string) => credentials,
+		getCurrentNodeParameter: (name: string) => nodeParams[name] ?? "",
 	} as unknown as ILoadOptionsFunctions;
 }
 
 function getCupsPrinters(node: PrintIpp) {
 	const fn = node.methods?.listSearch?.getCupsPrinters;
 	if (!fn) throw new Error("getCupsPrinters not found");
+	return fn;
+}
+
+function getSidesOptions(node: PrintIpp) {
+	const fn = node.methods?.listSearch?.getSidesOptions;
+	if (!fn) throw new Error("getSidesOptions not found");
+	return fn;
+}
+
+function getMediaOptions(node: PrintIpp) {
+	const fn = node.methods?.listSearch?.getMediaOptions;
+	if (!fn) throw new Error("getMediaOptions not found");
+	return fn;
+}
+
+function getColorModeOptions(node: PrintIpp) {
+	const fn = node.methods?.listSearch?.getColorModeOptions;
+	if (!fn) throw new Error("getColorModeOptions not found");
 	return fn;
 }
 
@@ -634,5 +739,388 @@ describe("listSearch.getCupsPrinters", () => {
 		} as unknown as ILoadOptionsFunctions;
 		await getCupsPrinters(node).call(ctx);
 		expect(capturedNames).toEqual(["printIpp"]);
+	});
+});
+
+describe("listSearch.getSidesOptions", () => {
+	it("returns IPP General defaults when printerName is empty", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getSidesOptions(node).call(ctx);
+		expect(result.results).toHaveLength(3);
+		expect(result.results[0]).toEqual({
+			name: "One-Sided (IPP General)",
+			value: "one-sided",
+		});
+		expect(result.results[1]).toEqual({
+			name: "Two-Sided Long Edge (IPP General)",
+			value: "two-sided-long-edge",
+		});
+		expect(result.results[2]).toEqual({
+			name: "Two-Sided Short Edge (IPP General)",
+			value: "two-sided-short-edge",
+		});
+	});
+
+	it("returns printer-specific values when printerName is set and fetch succeeds", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": ["one-sided"],
+				"media-supported": [],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getSidesOptions(node).call(ctx);
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0]).toEqual({
+			name: "One-Sided",
+			value: "one-sided",
+		});
+	});
+
+	it("falls back to IPP General defaults when fetch fails", async () => {
+		const factory = makeIppFactory(() => new Error("Printer offline"));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getSidesOptions(node).call(ctx);
+		expect(result.results).toHaveLength(3);
+		expect(result.results[0].value).toBe("one-sided");
+	});
+
+	it("falls back to IPP General defaults when printer returns empty sides-supported", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": [],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getSidesOptions(node).call(ctx);
+		expect(result.results).toHaveLength(3);
+	});
+
+	it("filters results by name (case-insensitive)", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getSidesOptions(node).call(ctx, "two-sided");
+		expect(result.results).toHaveLength(2);
+		expect(result.results.every((r) => r.value.includes("two-sided"))).toBe(
+			true,
+		);
+	});
+});
+
+describe("listSearch.getMediaOptions", () => {
+	it("returns IPP General defaults when printerName is empty", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getMediaOptions(node).call(ctx);
+		expect(result.results).toHaveLength(4);
+		expect(result.results[0]).toEqual({
+			name: "A4 (IPP General)",
+			value: "iso_a4_210x297mm",
+		});
+		expect(result.results[1]).toEqual({
+			name: "US Letter (IPP General)",
+			value: "na_letter_8.5x11in",
+		});
+		expect(result.results[2]).toEqual({
+			name: "A3 (IPP General)",
+			value: "iso_a3_297x420mm",
+		});
+		expect(result.results[3]).toEqual({
+			name: "US Legal (IPP General)",
+			value: "na_legal_8.5x14in",
+		});
+	});
+
+	it("returns printer-specific values when printerName is set and fetch succeeds", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": ["iso_a4_210x297mm", "iso_a3_297x420mm"],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getMediaOptions(node).call(ctx);
+		expect(result.results).toHaveLength(2);
+		expect(result.results[0]).toEqual({
+			name: "A4",
+			value: "iso_a4_210x297mm",
+		});
+		expect(result.results[1]).toEqual({
+			name: "A3",
+			value: "iso_a3_297x420mm",
+		});
+	});
+
+	it("renders custom sizes as Custom (<dimensions>)", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": ["custom_328.93x482.94mm_328.93x482.94mm"],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getMediaOptions(node).call(ctx);
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0]).toEqual({
+			name: "Custom (328.93x482.94mm)",
+			value: "custom_328.93x482.94mm_328.93x482.94mm",
+		});
+	});
+
+	it("falls back to IPP General defaults when fetch fails", async () => {
+		const factory = makeIppFactory(() => new Error("Printer offline"));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getMediaOptions(node).call(ctx);
+		expect(result.results).toHaveLength(4);
+	});
+
+	it("falls back to IPP General defaults when printer returns empty media-supported", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": [],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getMediaOptions(node).call(ctx);
+		expect(result.results).toHaveLength(4);
+	});
+
+	it("filters results by name (case-insensitive)", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getMediaOptions(node).call(ctx, "letter");
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0].value).toBe("na_letter_8.5x11in");
+	});
+});
+
+describe("listSearch.getColorModeOptions", () => {
+	it("returns IPP General defaults when printerName is empty", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getColorModeOptions(node).call(ctx);
+		expect(result.results).toHaveLength(3);
+		expect(result.results[0]).toEqual({
+			name: "Color (IPP General)",
+			value: "color",
+		});
+		expect(result.results[1]).toEqual({
+			name: "Monochrome (IPP General)",
+			value: "monochrome",
+		});
+		expect(result.results[2]).toEqual({
+			name: "Auto (IPP General)",
+			value: "auto",
+		});
+	});
+
+	it("returns printer-specific values when printerName is set and fetch succeeds", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": [],
+				"print-color-mode-supported": ["color", "monochrome"],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getColorModeOptions(node).call(ctx);
+		expect(result.results).toHaveLength(2);
+		expect(result.results[0]).toEqual({ name: "Color", value: "color" });
+		expect(result.results[1]).toEqual({
+			name: "Monochrome",
+			value: "monochrome",
+		});
+	});
+
+	it("falls back to IPP General defaults when fetch fails", async () => {
+		const factory = makeIppFactory(() => new Error("Printer offline"));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getColorModeOptions(node).call(ctx);
+		expect(result.results).toHaveLength(3);
+	});
+
+	it("falls back to IPP General defaults when printer returns empty color-modes", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": [],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getColorModeOptions(node).call(ctx);
+		expect(result.results).toHaveLength(3);
+	});
+
+	it("filters results by name (case-insensitive)", async () => {
+		const node = new PrintIpp(
+			makeIppFactory(() => ({ statusCode: "successful-ok" })),
+		);
+		const ctx = createMockLoadOptionsFunctions(undefined, { printerName: "" });
+		const result = await getColorModeOptions(node).call(ctx, "mono");
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0].value).toBe("monochrome");
+	});
+});
+
+describe("fetchPrinterAttributes", () => {
+	it("sends Get-Printer-Attributes to the printer URL", async () => {
+		const capturedUrls: string[] = [];
+		const capturedOps: string[] = [];
+		const factory = makeIppFactory((url, operation) => {
+			capturedUrls.push(url);
+			capturedOps.push(operation);
+			return {
+				statusCode: "successful-ok",
+				"printer-attributes-tag": {
+					"sides-supported": ["one-sided", "two-sided-long-edge"],
+					"media-supported": ["iso_a4_210x297mm"],
+					"print-color-mode-supported": ["color"],
+				} as unknown as Array<Record<string, unknown>>,
+			};
+		});
+		await fetchPrinterAttributes("cupsd", 631, "MyPrinter", "n8n", factory);
+		expect(capturedUrls[0]).toBe("http://cupsd:631/printers/MyPrinter");
+		expect(capturedOps[0]).toBe("Get-Printer-Attributes");
+	});
+
+	it("returns parsed attributes on success", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": ["one-sided", "two-sided-long-edge"],
+				"media-supported": ["iso_a4_210x297mm", "na_letter_8.5x11in"],
+				"print-color-mode-supported": ["color", "monochrome"],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result).toEqual({
+			sidesSupported: ["one-sided", "two-sided-long-edge"],
+			mediaSupported: ["iso_a4_210x297mm", "na_letter_8.5x11in"],
+			colorModesSupported: ["color", "monochrome"],
+		});
+	});
+
+	it("wraps single-value string attribute in array", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": "one-sided",
+				"media-supported": "iso_a4_210x297mm",
+				"print-color-mode-supported": "color",
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result?.sidesSupported).toEqual(["one-sided"]);
+		expect(result?.mediaSupported).toEqual(["iso_a4_210x297mm"]);
+		expect(result?.colorModesSupported).toEqual(["color"]);
+	});
+
+	it("returns null on network error", async () => {
+		const factory = makeIppFactory(() => new Error("Connection refused"));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result).toBeNull();
+	});
+
+	it("returns empty arrays for missing attributes", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result?.sidesSupported).toEqual([]);
+		expect(result?.mediaSupported).toEqual([]);
+		expect(result?.colorModesSupported).toEqual([]);
+	});
+
+	it("returns null when printer-attributes-tag is absent", async () => {
+		const factory = makeIppFactory(() => ({ statusCode: "successful-ok" }));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result).toBeNull();
 	});
 });

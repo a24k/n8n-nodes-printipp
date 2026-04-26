@@ -25,6 +25,7 @@ declare module "ipp" {
 	function Printer(url: string, options?: PrinterOptions): PrinterInstance;
 
 	const operations: Record<string, number>;
+	const attributes: Record<string, Record<string, unknown>>;
 
-	export { operations, Printer };
+	export { attributes, operations, Printer };
 }

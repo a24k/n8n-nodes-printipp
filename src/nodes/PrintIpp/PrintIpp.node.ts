@@ -1,8 +1,22 @@
-import { Printer as IppPrinter, operations as ippOperations } from "ipp";
+import {
+	Printer as IppPrinter,
+	attributes as ippAttributes,
+	operations as ippOperations,
+} from "ipp";
 
 // CUPS-Get-Printers (0x4002) is a CUPS extension not included in the ipp package's
 // standard operations table. Add it so the serializer writes the correct op code.
 ippOperations["CUPS-Get-Printers"] = 0x4002;
+
+// EPSON printers use a non-standard PPD option "Ink" (COLOR/MONO) for grayscale control.
+// Register it in the ipp package's Job Template group so the serializer accepts it.
+// Other printers silently ignore unknown PPD attributes sent via CUPS.
+ippAttributes["Job Template"].Ink = {
+	type: "keyword",
+	tag: 68,
+	min: 1,
+	max: 1023,
+};
 
 import type {
 	ICredentialsDecrypted,
@@ -25,7 +39,9 @@ export interface IppResponse {
 		"job-state"?: string;
 		"job-state-reasons"?: string;
 	};
-	"printer-attributes-tag"?: Array<Record<string, unknown>>;
+	"printer-attributes-tag"?:
+		| Array<Record<string, unknown>>
+		| Record<string, unknown>;
 }
 
 export interface IppPrinterInstance {
@@ -44,6 +60,67 @@ const defaultPrinterFactory: IppPrinterFactory = (url) =>
 export interface CupsPrinterEntry {
 	name: string;
 	info?: string;
+}
+
+export interface PrinterAttributes {
+	sidesSupported: string[];
+	mediaSupported: string[];
+	colorModesSupported: string[];
+}
+
+function toStringArray(val: unknown): string[] {
+	if (Array.isArray(val))
+		return (val as unknown[]).filter((v): v is string => typeof v === "string");
+	if (typeof val === "string") return [val];
+	return [];
+}
+
+export async function fetchPrinterAttributes(
+	host: string,
+	port: number,
+	printerName: string,
+	username: string,
+	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+): Promise<PrinterAttributes | null> {
+	try {
+		const printerUrl = `http://${host}:${port}/printers/${printerName}`;
+		const printer = printerFactory(printerUrl);
+		const response = await new Promise<IppResponse>((resolve, reject) => {
+			printer.execute(
+				"Get-Printer-Attributes",
+				{
+					"operation-attributes-tag": {
+						"requesting-user-name": username,
+						"requested-attributes": [
+							"sides-supported",
+							"media-supported",
+							"print-color-mode-supported",
+						],
+					},
+				},
+				(err, res) => {
+					if (err) reject(err);
+					else resolve(res);
+				},
+			);
+		});
+
+		const rawAttrs = response["printer-attributes-tag"];
+		if (!rawAttrs) return null;
+		// Get-Printer-Attributes always returns a single object, but normalise
+		// in case the ipp library wraps it in a single-element array.
+		const attrs: Record<string, unknown> = Array.isArray(rawAttrs)
+			? (rawAttrs[0] ?? {})
+			: (rawAttrs as Record<string, unknown>);
+
+		return {
+			sidesSupported: toStringArray(attrs["sides-supported"]),
+			mediaSupported: toStringArray(attrs["media-supported"]),
+			colorModesSupported: toStringArray(attrs["print-color-mode-supported"]),
+		};
+	} catch {
+		return null;
+	}
 }
 
 export async function fetchCupsPrinters(
@@ -112,6 +189,113 @@ export async function testCupsConnection(
 			message: "Connection failed",
 		};
 	}
+}
+
+const SIDES_DEFAULTS = [
+	{ name: "One-Sided (IPP General)", value: "one-sided" },
+	{ name: "Two-Sided Long Edge (IPP General)", value: "two-sided-long-edge" },
+	{ name: "Two-Sided Short Edge (IPP General)", value: "two-sided-short-edge" },
+];
+
+const MEDIA_DEFAULTS = [
+	{ name: "A4 (IPP General)", value: "iso_a4_210x297mm" },
+	{ name: "US Letter (IPP General)", value: "na_letter_8.5x11in" },
+	{ name: "A3 (IPP General)", value: "iso_a3_297x420mm" },
+	{ name: "US Legal (IPP General)", value: "na_legal_8.5x14in" },
+];
+
+const COLOR_MODE_DEFAULTS = [
+	{ name: "Color (IPP General)", value: "color" },
+	{ name: "Monochrome (IPP General)", value: "monochrome" },
+	{ name: "Auto (IPP General)", value: "auto" },
+];
+
+const SIDES_LABELS: Record<string, string> = {
+	"one-sided": "One-Sided",
+	"two-sided-long-edge": "Two-Sided Long Edge",
+	"two-sided-short-edge": "Two-Sided Short Edge",
+};
+
+const MEDIA_LABELS: Record<string, string> = {
+	iso_a4_210x297mm: "A4",
+	"na_letter_8.5x11in": "US Letter",
+	iso_a3_297x420mm: "A3",
+	"na_legal_8.5x14in": "US Legal",
+	iso_a5_148x210mm: "A5",
+	iso_a6_105x148mm: "A6",
+	"na_executive_7.25x10.5in": "Executive",
+	na_ledger_11x17in: "Ledger (11×17)",
+	na_tabloid_11x17in: "Tabloid (11×17)",
+	jis_b4_257x364mm: "JIS B4",
+	jis_b5_182x257mm: "JIS B5",
+	om_postcard_100x148mm: "Postcard (100×148mm)",
+	na_4x6_4x6in: "4×6 Photo",
+	na_5x7_5x7in: "5×7 Photo",
+	jpn_hagaki_100x148mm: "Hagaki (100×148mm)",
+	jpn_you4_105x235mm: "You4 Envelope (105×235mm)",
+	"oe_photo-l_3.5x5in": "Photo L (3.5×5in)",
+	"na_index-4x6_4x6in": "Index Card (4×6in)",
+	"na_govt-letter_8x10in": "Government Letter (8×10in)",
+	"oe_photo-10r_10x12in": "Photo 10R (10×12in)",
+};
+
+function labelMedia(v: string): string {
+	if (MEDIA_LABELS[v]) return MEDIA_LABELS[v];
+	// custom_<W>x<H><unit>_<W>x<H><unit> → "Custom (<W>x<H><unit>)"
+	const customMatch = /^custom_(\S+?)_\S+$/.exec(v);
+	if (customMatch) return `Custom (${customMatch[1]})`;
+	return v;
+}
+
+const COLOR_MODE_LABELS: Record<string, string> = {
+	color: "Color",
+	monochrome: "Monochrome",
+	auto: "Auto",
+	"auto-monochrome": "Auto (Monochrome)",
+	"process-monochrome": "Process Monochrome",
+	"bi-level": "Bi-Level",
+};
+
+async function listPrinterAttribute(
+	ctx: ILoadOptionsFunctions,
+	attrKey: keyof PrinterAttributes,
+	defaults: Array<{ name: string; value: string }>,
+	labeler: (v: string) => string,
+	filter: string | undefined,
+	printerFactory: IppPrinterFactory,
+): Promise<INodeListSearchResult> {
+	const credentials = await ctx.getCredentials("printIpp");
+	const { host, port, username } = credentials as {
+		host: string;
+		port: number;
+		username: string;
+	};
+	const printerName = ctx.getCurrentNodeParameter("printerName", {
+		extractValue: true,
+	}) as string;
+
+	let items = defaults;
+	if (printerName) {
+		const attrs = await fetchPrinterAttributes(
+			host,
+			port,
+			printerName,
+			username,
+			printerFactory,
+		);
+		const supported = attrs?.[attrKey] ?? [];
+		if (supported.length > 0) {
+			items = supported.map((v) => ({ name: labeler(v), value: v }));
+		}
+	}
+
+	const results = filter
+		? items.filter((item) =>
+				item.name.toLowerCase().includes(filter.toLowerCase()),
+			)
+		: items;
+
+	return { results };
 }
 
 const nodeDescription: INodeTypeDescription = {
@@ -193,29 +377,91 @@ const nodeDescription: INodeTypeDescription = {
 		{
 			displayName: "Sides",
 			name: "sides",
-			type: "options",
-			default: "one-sided",
-			options: [
-				{ name: "One-Sided", value: "one-sided" },
+			type: "resourceLocator",
+			required: false,
+			default: {
+				mode: "list",
+				value: "one-sided",
+				cachedResultName: "One-Sided (IPP General)",
+			},
+			description: "Duplex printing setting",
+			modes: [
 				{
-					name: "Two-Sided (Long Edge / Portrait)",
-					value: "two-sided-long-edge",
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getSidesOptions",
+						searchable: false,
+					},
 				},
 				{
-					name: "Two-Sided (Short Edge / Landscape)",
-					value: "two-sided-short-edge",
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "one-sided",
 				},
 			],
-			description: "Duplex printing setting",
 		},
 		{
 			displayName: "Media",
 			name: "media",
-			type: "string",
-			default: "iso_a4_210x297mm",
-			placeholder: "iso_a4_210x297mm",
+			type: "resourceLocator",
+			required: false,
+			default: {
+				mode: "list",
+				value: "iso_a4_210x297mm",
+				cachedResultName: "A4 (IPP General)",
+			},
 			description:
-				"IPP media keyword. Common values: iso_a4_210x297mm, na_letter_8.5x11in, iso_a3_297x420mm",
+				"IPP media keyword. Select from printer-supported sizes or enter a PWG media keyword manually.",
+			modes: [
+				{
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getMediaOptions",
+						searchable: true,
+						searchFilterRequired: false,
+					},
+				},
+				{
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "iso_a4_210x297mm",
+				},
+			],
+		},
+		{
+			displayName: "Color Mode",
+			name: "colorMode",
+			type: "resourceLocator",
+			required: false,
+			default: {
+				mode: "list",
+				value: "color",
+				cachedResultName: "Color (IPP General)",
+			},
+			description: "Color printing mode",
+			modes: [
+				{
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getColorModeOptions",
+						searchable: false,
+					},
+				},
+				{
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "color",
+				},
+			],
 		},
 		{
 			displayName: "Advanced Options",
@@ -310,6 +556,48 @@ export class PrintIpp implements INodeType {
 
 					return { results };
 				},
+
+				async getSidesOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					return listPrinterAttribute(
+						this,
+						"sidesSupported",
+						SIDES_DEFAULTS,
+						(v) => SIDES_LABELS[v] ?? v,
+						filter,
+						printerFactory,
+					);
+				},
+
+				async getMediaOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					return listPrinterAttribute(
+						this,
+						"mediaSupported",
+						MEDIA_DEFAULTS,
+						labelMedia,
+						filter,
+						printerFactory,
+					);
+				},
+
+				async getColorModeOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					return listPrinterAttribute(
+						this,
+						"colorModesSupported",
+						COLOR_MODE_DEFAULTS,
+						(v) => COLOR_MODE_LABELS[v] ?? v,
+						filter,
+						printerFactory,
+					);
+				},
 			},
 		};
 
@@ -350,8 +638,15 @@ export class PrintIpp implements INodeType {
 						i,
 					) as string;
 					const copies = this.getNodeParameter("copies", i) as number;
-					const sides = this.getNodeParameter("sides", i) as string;
-					const media = this.getNodeParameter("media", i) as string;
+					const sides = this.getNodeParameter("sides", i, undefined, {
+						extractValue: true,
+					}) as string;
+					const media = this.getNodeParameter("media", i, undefined, {
+						extractValue: true,
+					}) as string;
+					const colorMode = this.getNodeParameter("colorMode", i, undefined, {
+						extractValue: true,
+					}) as string;
 					const advancedOptions = this.getNodeParameter(
 						"advancedOptions",
 						i,
@@ -381,6 +676,11 @@ export class PrintIpp implements INodeType {
 							copies,
 							sides,
 							media,
+							"print-color-mode": colorMode,
+							// CUPS EPSON-compatible grayscale: PPD option "Ink" (COLOR/MONO).
+							// CUPS ignores unknown PPD options on other printers, so this is safe universally.
+							...(colorMode === "color" && { Ink: "COLOR" }),
+							...(colorMode === "monochrome" && { Ink: "MONO" }),
 						},
 						data: buffer,
 					};
@@ -395,6 +695,7 @@ export class PrintIpp implements INodeType {
 							"job-state": jobAttrs["job-state"],
 							"job-state-reasons": jobAttrs["job-state-reasons"],
 							"status-code": response.statusCode,
+							"print-color-mode": colorMode,
 						},
 						pairedItem: { item: i },
 					});
