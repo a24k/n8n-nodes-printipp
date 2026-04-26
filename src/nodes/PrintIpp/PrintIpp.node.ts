@@ -1,8 +1,22 @@
-import { Printer as IppPrinter, operations as ippOperations } from "ipp";
+import {
+	Printer as IppPrinter,
+	attributes as ippAttributes,
+	operations as ippOperations,
+} from "ipp";
 
 // CUPS-Get-Printers (0x4002) is a CUPS extension not included in the ipp package's
 // standard operations table. Add it so the serializer writes the correct op code.
 ippOperations["CUPS-Get-Printers"] = 0x4002;
+
+// EPSON printers use a non-standard PPD option "Ink" (COLOR/MONO) for grayscale control.
+// Register it in the ipp package's Job Template group so the serializer accepts it.
+// Other printers silently ignore unknown PPD attributes sent via CUPS.
+ippAttributes["Job Template"].Ink = {
+	type: "keyword",
+	tag: 68,
+	min: 1,
+	max: 1023,
+};
 
 import type {
 	ICredentialsDecrypted,
