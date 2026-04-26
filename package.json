@@ -1,6 +1,6 @@
 {
 	"name": "@a24k/n8n-nodes-printipp",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "n8n community node for IPP printing — send print jobs directly to CUPS/IPP printers without system-level lp/lpr dependencies",
 	"keywords": [
 		"n8n-community-node-package"
