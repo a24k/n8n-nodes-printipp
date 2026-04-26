@@ -14,6 +14,7 @@ declare module "ipp" {
 		id?: number;
 		"operation-attributes-tag"?: Record<string, unknown>;
 		"job-attributes-tag"?: Record<string, unknown>;
+		"printer-attributes-tag"?: Array<Record<string, unknown>>;
 		"unsupported-attributes"?: unknown;
 	}
 
@@ -23,5 +24,7 @@ declare module "ipp" {
 
 	function Printer(url: string, options?: PrinterOptions): PrinterInstance;
 
-	export { Printer };
+	const operations: Record<string, number>;
+
+	export { operations, Printer };
 }

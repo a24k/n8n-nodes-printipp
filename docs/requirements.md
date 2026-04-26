@@ -22,17 +22,28 @@ It is updated incrementally as draft stories are completed and merged.
 
 ---
 
-## Credential: `ippApi`
+## Credential: `printIpp`
 
-Defined in `src/credentials/IppApi.credentials.ts`.
+Defined in `src/credentials/IppApi.credentials.ts`. Display name: **PrintIPP Endpoint**.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
+| Connection Type | `options` | — | `cups` | Server type. Currently `CUPS Server` only; reserved for future Direct IPP support. |
 | Host | `string` | ✅ | — | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
 | Port | `number` | — | `631` | IPP port |
 | Username | `string` | — | `n8n` | Value sent as `requesting-user-name` in every IPP request |
 
 The printer URI is constructed at runtime as `http://{host}:{port}/printers/{printerName}`.
+
+### Test Connection
+
+A "Test connection" button is available in the credential UI.
+
+- **Implementation:** `testedBy: "ippCredentialTest"` in the node description wires the button to `methods.credentialTest.ippCredentialTest` on the `Printer` node. The handler dispatches to `testCupsConnection()` based on `connectionType`.
+- **Protocol (CUPS):** Sends a `CUPS-Get-Printers` IPP operation to `http://{host}:{port}/` (the CUPS root endpoint, no printer name required). `CUPS-Get-Printers` (op code `0x4002`) is a CUPS extension not present in the `ipp` package's standard operations table and is registered at module load time via monkey-patch.
+- **Success:** Connection established and at least 1 printer found. n8n displays `"Connection tested successfully"` (n8n hardcodes this message for all OK results).
+- **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but returned 0 printers.
+- **Failure (network/IPP error):** `"Connection failed"` (any network or IPP error).
 
 ---
 
@@ -48,7 +59,7 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| Credential | `ippApi` | ✅ | — | Host, port, username |
+| Credential | `printIpp` | ✅ | — | Host, port, username |
 | Printer Name | `string` | ✅ | — | Printer queue name as registered in CUPS (e.g. `PX-M6010F`) |
 | Binary Property | `string` | ✅ | `data` | n8n binary property name containing the document to print |
 | Copies | `number` | — | `1` | Number of copies (IPP `copies` attribute) |

@@ -4,7 +4,7 @@ import type {
 	IppPrinterFactory,
 	IppResponse,
 } from "../src/nodes/Printer/Printer.node";
-import { Printer } from "../src/nodes/Printer/Printer.node";
+import { Printer, testCupsConnection } from "../src/nodes/Printer/Printer.node";
 
 function makeIppFactory(
 	handler: (
@@ -114,10 +114,10 @@ describe("Printer node description", () => {
 		expect(node.description.usableAsTool).toBe(true);
 	});
 
-	it("uses ippApi credential", () => {
+	it("uses printIpp credential", () => {
 		const node = new Printer();
 		const creds = node.description.credentials ?? [];
-		expect(creds.some((c) => c.name === "ippApi")).toBe(true);
+		expect(creds.some((c) => c.name === "printIpp")).toBe(true);
 	});
 
 	it("has required properties", () => {
@@ -390,5 +390,76 @@ describe("Printer execute — error handling", () => {
 		expect(result[0]).toHaveLength(2);
 		expect(result[0][0].json.error).toBe("First item failed");
 		expect(result[0][1].json["job-id"]).toBe(2);
+	});
+});
+
+describe("Printer credentialTest wiring", () => {
+	it("exposes ippCredentialTest in methods.credentialTest", () => {
+		const node = new Printer();
+		expect(typeof node.methods?.credentialTest?.ippCredentialTest).toBe(
+			"function",
+		);
+	});
+});
+
+describe("testCupsConnection (CUPS-specific credential test)", () => {
+	it("sends CUPS-Get-Printers to root endpoint", async () => {
+		const capturedUrls: string[] = [];
+		const capturedOps: string[] = [];
+		const factory = makeIppFactory((url, operation) => {
+			capturedUrls.push(url);
+			capturedOps.push(operation);
+			return { statusCode: "successful-ok", "printer-attributes-tag": [] };
+		});
+		await testCupsConnection("myprinter", 9631, "n8n", factory);
+		expect(capturedUrls[0]).toBe("http://myprinter:9631/");
+		expect(capturedOps[0]).toBe("CUPS-Get-Printers");
+	});
+
+	it("returns OK with 2 printers found", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [{}, {}],
+		}));
+		const result = await testCupsConnection("cupsd", 631, "n8n", factory);
+		expect(result.status).toBe("OK");
+		expect(result.message).toBe("Connected successfully (2 printers found)");
+	});
+
+	it("returns OK with singular label for 1 printer (array)", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [{}],
+		}));
+		const result = await testCupsConnection("cupsd", 631, "n8n", factory);
+		expect(result.status).toBe("OK");
+		expect(result.message).toBe("Connected successfully (1 printer found)");
+	});
+
+	it("returns OK with 1 printer when ipp returns object instead of array", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await testCupsConnection("cupsd", 631, "n8n", factory);
+		expect(result.status).toBe("OK");
+		expect(result.message).toBe("Connected successfully (1 printer found)");
+	});
+
+	it("returns Error with message when no printers found", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": [],
+		}));
+		const result = await testCupsConnection("cupsd", 631, "n8n", factory);
+		expect(result.status).toBe("Error");
+		expect(result.message).toContain("Connection failed: no printers found");
+	});
+
+	it("returns Error on connection failure", async () => {
+		const factory = makeIppFactory(() => new Error("Connection refused"));
+		const result = await testCupsConnection("cupsd", 631, "n8n", factory);
+		expect(result.status).toBe("Error");
+		expect(result.message).toBe("Connection failed");
 	});
 });

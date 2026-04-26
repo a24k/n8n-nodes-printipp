@@ -84,12 +84,13 @@ docs/
 
 ### Credential
 
-Define a new `ippApi` credential type in `src/credentials/IppApi.credentials.ts`.
+Define the `printIpp` credential type in `src/credentials/IppApi.credentials.ts` (display name: **PrintIPP Endpoint**).
 
 Fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `connectionType` | `options` | `cups` | Server type. Currently `CUPS Server` only. |
 | `host` | `string` | — | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
 | `port` | `number` | `631` | IPP port |
 | `username` | `string` | `n8n` | `requesting-user-name` sent with each job |

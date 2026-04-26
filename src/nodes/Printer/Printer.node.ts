@@ -1,6 +1,14 @@
-import { Printer as IppPrinter } from "ipp";
+import { Printer as IppPrinter, operations as ippOperations } from "ipp";
+
+// CUPS-Get-Printers (0x4002) is a CUPS extension not included in the ipp package's
+// standard operations table. Add it so the serializer writes the correct op code.
+ippOperations["CUPS-Get-Printers"] = 0x4002;
+
 import type {
+	ICredentialsDecrypted,
+	ICredentialTestFunctions,
 	IExecuteFunctions,
+	INodeCredentialTestResult,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
@@ -15,11 +23,12 @@ export interface IppResponse {
 		"job-state"?: string;
 		"job-state-reasons"?: string;
 	};
+	"printer-attributes-tag"?: Array<Record<string, unknown>>;
 }
 
 export interface IppPrinterInstance {
 	execute(
-		operation: string,
+		operation: string | number,
 		message: object,
 		callback: (err: Error | null, res: IppResponse) => void,
 	): void;
@@ -29,6 +38,57 @@ export type IppPrinterFactory = (url: string) => IppPrinterInstance;
 
 const defaultPrinterFactory: IppPrinterFactory = (url) =>
 	IppPrinter(url) as unknown as IppPrinterInstance;
+
+export async function testCupsConnection(
+	host: string,
+	port: number,
+	username: string,
+	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+): Promise<INodeCredentialTestResult> {
+	try {
+		const cupsUrl = `http://${host}:${port}/`;
+		const printer = printerFactory(cupsUrl);
+		const response = await new Promise<IppResponse>((resolve, reject) => {
+			printer.execute(
+				"CUPS-Get-Printers",
+				{
+					"operation-attributes-tag": {
+						"requesting-user-name": username,
+					},
+				},
+				(err, res) => {
+					if (err) reject(err);
+					else resolve(res);
+				},
+			);
+		});
+		const printerAttrs = response["printer-attributes-tag"];
+		const statusCode = response.statusCode ?? "unknown";
+		const attrType = Array.isArray(printerAttrs)
+			? "array"
+			: typeof printerAttrs;
+		const count = Array.isArray(printerAttrs)
+			? printerAttrs.length
+			: printerAttrs != null
+				? 1
+				: 0;
+		if (count === 0) {
+			return {
+				status: "Error",
+				message: `Connection failed: no printers found (status=${statusCode}, tag=${attrType})`,
+			};
+		}
+		return {
+			status: "OK",
+			message: `Connected successfully (${count} ${count === 1 ? "printer" : "printers"} found)`,
+		};
+	} catch {
+		return {
+			status: "Error",
+			message: "Connection failed",
+		};
+	}
+}
 
 const nodeDescription: INodeTypeDescription = {
 	displayName: "Printer (IPP) @a24k",
@@ -47,8 +107,9 @@ const nodeDescription: INodeTypeDescription = {
 	usableAsTool: true,
 	credentials: [
 		{
-			name: "ippApi",
+			name: "printIpp",
 			required: true,
+			testedBy: "ippCredentialTest",
 		},
 	],
 	properties: [
@@ -134,6 +195,29 @@ const nodeDescription: INodeTypeDescription = {
 export class Printer implements INodeType {
 	description: INodeTypeDescription = nodeDescription;
 
+	methods = {
+		credentialTest: {
+			async ippCredentialTest(
+				this: ICredentialTestFunctions,
+				credential: ICredentialsDecrypted,
+			): Promise<INodeCredentialTestResult> {
+				const { host, port, username, connectionType } = credential.data as {
+					host: string;
+					port: number;
+					username: string;
+					connectionType: string;
+				};
+				if (connectionType === "cups") {
+					return testCupsConnection(host, port, username);
+				}
+				return {
+					status: "Error",
+					message: `Unsupported connection type: ${connectionType}`,
+				};
+			},
+		},
+	};
+
 	// Assigned in the constructor so printerFactory is captured via closure,
 	// while `this` inside is the IExecuteFunctions context provided by n8n.
 	execute: (this: IExecuteFunctions) => Promise<INodeExecutionData[][]>;
@@ -158,7 +242,7 @@ export class Printer implements INodeType {
 			const items = this.getInputData();
 			const returnData: INodeExecutionData[] = [];
 
-			const credentials = await this.getCredentials("ippApi");
+			const credentials = await this.getCredentials("printIpp");
 			const host = credentials.host as string;
 			const port = credentials.port as number;
 			const username = credentials.username as string;
