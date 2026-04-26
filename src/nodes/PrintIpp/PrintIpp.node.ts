@@ -196,10 +196,43 @@ const COLOR_MODE_DEFAULTS = [
 	{ name: "Auto (IPP General)", value: "auto" },
 ];
 
+const SIDES_LABELS: Record<string, string> = {
+	"one-sided": "One-Sided",
+	"two-sided-long-edge": "Two-Sided Long Edge",
+	"two-sided-short-edge": "Two-Sided Short Edge",
+};
+
+const MEDIA_LABELS: Record<string, string> = {
+	iso_a4_210x297mm: "A4",
+	"na_letter_8.5x11in": "US Letter",
+	iso_a3_297x420mm: "A3",
+	"na_legal_8.5x14in": "US Legal",
+	iso_a5_148x210mm: "A5",
+	iso_a6_105x148mm: "A6",
+	"na_executive_7.25x10.5in": "Executive",
+	na_ledger_11x17in: "Ledger (11×17)",
+	na_tabloid_11x17in: "Tabloid (11×17)",
+	jis_b4_257x364mm: "JIS B4",
+	jis_b5_182x257mm: "JIS B5",
+	om_postcard_100x148mm: "Postcard (100×148mm)",
+	na_4x6_4x6in: "4×6 Photo",
+	na_5x7_5x7in: "5×7 Photo",
+};
+
+const COLOR_MODE_LABELS: Record<string, string> = {
+	color: "Color",
+	monochrome: "Monochrome",
+	auto: "Auto",
+	"auto-monochrome": "Auto (Monochrome)",
+	"process-monochrome": "Process Monochrome",
+	"bi-level": "Bi-Level",
+};
+
 async function listPrinterAttribute(
 	ctx: ILoadOptionsFunctions,
 	attrKey: keyof PrinterAttributes,
 	defaults: Array<{ name: string; value: string }>,
+	labels: Record<string, string>,
 	filter: string | undefined,
 	printerFactory: IppPrinterFactory,
 ): Promise<INodeListSearchResult> {
@@ -224,7 +257,7 @@ async function listPrinterAttribute(
 		);
 		const supported = attrs?.[attrKey] ?? [];
 		if (supported.length > 0) {
-			items = supported.map((v) => ({ name: v, value: v }));
+			items = supported.map((v) => ({ name: labels[v] ?? v, value: v }));
 		}
 	}
 
@@ -492,6 +525,7 @@ export class PrintIpp implements INodeType {
 						this,
 						"sidesSupported",
 						SIDES_DEFAULTS,
+						SIDES_LABELS,
 						filter,
 						printerFactory,
 					);
@@ -505,6 +539,7 @@ export class PrintIpp implements INodeType {
 						this,
 						"mediaSupported",
 						MEDIA_DEFAULTS,
+						MEDIA_LABELS,
 						filter,
 						printerFactory,
 					);
@@ -518,6 +553,7 @@ export class PrintIpp implements INodeType {
 						this,
 						"colorModesSupported",
 						COLOR_MODE_DEFAULTS,
+						COLOR_MODE_LABELS,
 						filter,
 						printerFactory,
 					);

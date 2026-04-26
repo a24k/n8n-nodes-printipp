@@ -720,7 +720,7 @@ describe("listSearch.getSidesOptions", () => {
 		const result = await getSidesOptions(node).call(ctx);
 		expect(result.results).toHaveLength(1);
 		expect(result.results[0]).toEqual({
-			name: "one-sided",
+			name: "One-Sided",
 			value: "one-sided",
 		});
 	});
@@ -808,7 +808,7 @@ describe("listSearch.getMediaOptions", () => {
 		const result = await getMediaOptions(node).call(ctx);
 		expect(result.results).toHaveLength(2);
 		expect(result.results[0]).toEqual({
-			name: "iso_a4_210x297mm",
+			name: "A4",
 			value: "iso_a4_210x297mm",
 		});
 	});
@@ -888,9 +888,9 @@ describe("listSearch.getColorModeOptions", () => {
 		});
 		const result = await getColorModeOptions(node).call(ctx);
 		expect(result.results).toHaveLength(2);
-		expect(result.results[0]).toEqual({ name: "color", value: "color" });
+		expect(result.results[0]).toEqual({ name: "Color", value: "color" });
 		expect(result.results[1]).toEqual({
-			name: "monochrome",
+			name: "Monochrome",
 			value: "monochrome",
 		});
 	});
