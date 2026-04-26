@@ -134,8 +134,9 @@ const msg = {
   },
   "job-attributes-tag": {
     copies: copies,
-    sides: sides,
-    media: media,
+    sides,
+    media,
+    "print-color-mode": colorMode,
   },
   data: buffer, // Buffer containing PDF binary
 };
