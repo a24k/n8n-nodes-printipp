@@ -177,6 +177,25 @@ export async function testCupsConnection(
 	}
 }
 
+const SIDES_DEFAULTS = [
+	{ name: "One-Sided (IPP General)", value: "one-sided" },
+	{ name: "Two-Sided Long Edge (IPP General)", value: "two-sided-long-edge" },
+	{ name: "Two-Sided Short Edge (IPP General)", value: "two-sided-short-edge" },
+];
+
+const MEDIA_DEFAULTS = [
+	{ name: "A4 (IPP General)", value: "iso_a4_210x297mm" },
+	{ name: "US Letter (IPP General)", value: "na_letter_8.5x11in" },
+	{ name: "A3 (IPP General)", value: "iso_a3_297x420mm" },
+	{ name: "US Legal (IPP General)", value: "na_legal_8.5x14in" },
+];
+
+const COLOR_MODE_DEFAULTS = [
+	{ name: "Color (IPP General)", value: "color" },
+	{ name: "Monochrome (IPP General)", value: "monochrome" },
+	{ name: "Auto (IPP General)", value: "auto" },
+];
+
 const nodeDescription: INodeTypeDescription = {
 	displayName: "PrintIPP @a24k",
 	name: "printIpp",
@@ -370,6 +389,120 @@ export class PrintIpp implements INodeType {
 							name: p.info ? `${p.name} (${p.info})` : p.name,
 							value: p.name,
 						}));
+
+					return { results };
+				},
+
+				async getSidesOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					const credentials = await this.getCredentials("printIpp");
+					const { host, port, username } = credentials as {
+						host: string;
+						port: number;
+						username: string;
+					};
+					const printerName = this.getCurrentNodeParameter("printerName", {
+						extractValue: true,
+					}) as string;
+
+					let items = SIDES_DEFAULTS;
+					if (printerName) {
+						const attrs = await fetchPrinterAttributes(
+							host,
+							port,
+							printerName,
+							username,
+							printerFactory,
+						);
+						if (attrs && attrs.sidesSupported.length > 0) {
+							items = attrs.sidesSupported.map((v) => ({ name: v, value: v }));
+						}
+					}
+
+					const results = filter
+						? items.filter((item) =>
+								item.name.toLowerCase().includes(filter.toLowerCase()),
+							)
+						: items;
+
+					return { results };
+				},
+
+				async getMediaOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					const credentials = await this.getCredentials("printIpp");
+					const { host, port, username } = credentials as {
+						host: string;
+						port: number;
+						username: string;
+					};
+					const printerName = this.getCurrentNodeParameter("printerName", {
+						extractValue: true,
+					}) as string;
+
+					let items = MEDIA_DEFAULTS;
+					if (printerName) {
+						const attrs = await fetchPrinterAttributes(
+							host,
+							port,
+							printerName,
+							username,
+							printerFactory,
+						);
+						if (attrs && attrs.mediaSupported.length > 0) {
+							items = attrs.mediaSupported.map((v) => ({ name: v, value: v }));
+						}
+					}
+
+					const results = filter
+						? items.filter((item) =>
+								item.name.toLowerCase().includes(filter.toLowerCase()),
+							)
+						: items;
+
+					return { results };
+				},
+
+				async getColorModeOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					const credentials = await this.getCredentials("printIpp");
+					const { host, port, username } = credentials as {
+						host: string;
+						port: number;
+						username: string;
+					};
+					const printerName = this.getCurrentNodeParameter("printerName", {
+						extractValue: true,
+					}) as string;
+
+					let items = COLOR_MODE_DEFAULTS;
+					if (printerName) {
+						const attrs = await fetchPrinterAttributes(
+							host,
+							port,
+							printerName,
+							username,
+							printerFactory,
+						);
+						if (attrs && attrs.colorModesSupported.length > 0) {
+							items = attrs.colorModesSupported.map((v) => ({
+								name: v,
+								value: v,
+							}));
+						}
+					}
+
+					const results = filter
+						? items.filter((item) =>
+								item.name.toLowerCase().includes(filter.toLowerCase()),
+							)
+						: items;
 
 					return { results };
 				},
