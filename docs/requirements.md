@@ -40,8 +40,9 @@ A "Test connection" button is available in the credential UI.
 
 - **Implementation:** `testedBy: "ippCredentialTest"` in the node description wires the button to `methods.credentialTest.ippCredentialTest` on the `Printer` node.
 - **Protocol:** Sends a `CUPS-Get-Printers` IPP operation to `http://{host}:{port}/` (the CUPS root endpoint, no printer name required).
-- **Success:** `"Connected successfully (N printer(s) found)"` — 0 printers is treated as success.
-- **Failure:** `"Connection failed"` (any network or IPP error).
+- **Success:** Connection established and at least 1 printer found. n8n displays `"Connection tested successfully"` (n8n hardcodes this message for all OK results).
+- **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but returned 0 printers.
+- **Failure (network/IPP error):** `"Connection failed"` (any network or IPP error).
 
 ---
 

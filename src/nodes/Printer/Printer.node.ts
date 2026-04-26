@@ -59,10 +59,15 @@ export async function testIppConnection(
 		});
 		const printerAttrs = response["printer-attributes-tag"];
 		const count = Array.isArray(printerAttrs) ? printerAttrs.length : 0;
-		const label = count === 1 ? "printer" : "printers";
+		if (count === 0) {
+			return {
+				status: "Error",
+				message: "Connection failed: no printers found",
+			};
+		}
 		return {
 			status: "OK",
-			message: `Connected successfully (${count} ${label} found)`,
+			message: `Connected successfully (${count} ${count === 1 ? "printer" : "printers"} found)`,
 		};
 	} catch {
 		return {

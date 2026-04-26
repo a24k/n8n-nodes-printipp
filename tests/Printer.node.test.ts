@@ -436,14 +436,14 @@ describe("testIppConnection", () => {
 		expect(result.message).toBe("Connected successfully (1 printer found)");
 	});
 
-	it("returns OK with 0 printers when none found", async () => {
+	it("returns Error with message when no printers found", async () => {
 		const factory = makeIppFactory(() => ({
 			statusCode: "successful-ok",
 			"printer-attributes-tag": [],
 		}));
 		const result = await testIppConnection("cupsd", 631, "n8n", factory);
-		expect(result.status).toBe("OK");
-		expect(result.message).toBe("Connected successfully (0 printers found)");
+		expect(result.status).toBe("Error");
+		expect(result.message).toBe("Connection failed: no printers found");
 	});
 
 	it("returns Error on connection failure", async () => {
