@@ -413,7 +413,7 @@ describe("testIppConnection", () => {
 		});
 		await testIppConnection("myprinter", 9631, "n8n", factory);
 		expect(capturedUrls[0]).toBe("http://myprinter:9631/");
-		expect(capturedOps[0]).toBe("CUPS-Get-Printers");
+		expect(capturedOps[0]).toBe(0x4002);
 	});
 
 	it("returns OK with 2 printers found", async () => {

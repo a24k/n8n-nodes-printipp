@@ -1,4 +1,8 @@
-import { Printer as IppPrinter } from "ipp";
+import { Printer as IppPrinter, operations as ippOperations } from "ipp";
+
+// CUPS-Get-Printers (0x4002) is a CUPS extension not included in the ipp package's
+// standard operations table. Add it so the serializer writes the correct op code.
+ippOperations["CUPS-Get-Printers"] = 0x4002;
 import type {
 	ICredentialsDecrypted,
 	ICredentialTestFunctions,
@@ -23,7 +27,7 @@ export interface IppResponse {
 
 export interface IppPrinterInstance {
 	execute(
-		operation: string,
+		operation: string | number,
 		message: object,
 		callback: (err: Error | null, res: IppResponse) => void,
 	): void;
@@ -45,7 +49,7 @@ export async function testIppConnection(
 		const printer = printerFactory(cupsUrl);
 		const response = await new Promise<IppResponse>((resolve, reject) => {
 			printer.execute(
-				"CUPS-Get-Printers",
+				0x4002,
 				{
 					"operation-attributes-tag": {
 						"requesting-user-name": username,
