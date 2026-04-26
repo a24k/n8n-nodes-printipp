@@ -295,6 +295,66 @@ describe("PrintIpp execute — successful print job", () => {
 		expect(jobAttrs.sides).toBe("two-sided-long-edge");
 		expect(jobAttrs.media).toBe("na_letter_8.5x11in");
 		expect(jobAttrs["print-color-mode"]).toBe("monochrome");
+		expect(jobAttrs.Ink).toBe("MONO");
+	});
+
+	it("sends Ink=COLOR when colorMode is color", async () => {
+		const capturedMessages: object[] = [];
+		const factory = makeIppFactory((_url, _op, message) => {
+			capturedMessages.push(message);
+			return {
+				statusCode: "successful-ok",
+				"job-attributes-tag": {
+					"job-id": 1,
+					"job-uri": "",
+					"job-state": "pending",
+					"job-state-reasons": "none",
+				},
+			};
+		});
+		const ctx = createMockExecuteFunctions({});
+		const node = new PrintIpp(factory);
+		await node.execute.call(ctx);
+		const jobAttrs = (capturedMessages[0] as Record<string, unknown>)[
+			"job-attributes-tag"
+		] as Record<string, unknown>;
+		expect(jobAttrs["print-color-mode"]).toBe("color");
+		expect(jobAttrs.Ink).toBe("COLOR");
+	});
+
+	it("does not send Ink for non-color/monochrome modes", async () => {
+		const capturedMessages: object[] = [];
+		const factory = makeIppFactory((_url, _op, message) => {
+			capturedMessages.push(message);
+			return {
+				statusCode: "successful-ok",
+				"job-attributes-tag": {
+					"job-id": 1,
+					"job-uri": "",
+					"job-state": "pending",
+					"job-state-reasons": "none",
+				},
+			};
+		});
+		const ctx = createMockExecuteFunctions({
+			getNodeParameter: (param, _i, fallback) => {
+				if (param === "printerName") return "TestPrinter";
+				if (param === "binaryProperty") return "data";
+				if (param === "copies") return 1;
+				if (param === "sides") return "one-sided";
+				if (param === "media") return "iso_a4_210x297mm";
+				if (param === "colorMode") return "auto";
+				if (param === "advancedOptions") return fallback ?? {};
+				return fallback ?? "";
+			},
+		});
+		const node = new PrintIpp(factory);
+		await node.execute.call(ctx);
+		const jobAttrs = (capturedMessages[0] as Record<string, unknown>)[
+			"job-attributes-tag"
+		] as Record<string, unknown>;
+		expect(jobAttrs["print-color-mode"]).toBe("auto");
+		expect(jobAttrs.Ink).toBeUndefined();
 	});
 
 	it("sends binary buffer as data", async () => {

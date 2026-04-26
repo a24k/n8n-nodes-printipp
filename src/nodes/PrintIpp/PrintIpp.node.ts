@@ -663,6 +663,10 @@ export class PrintIpp implements INodeType {
 							sides,
 							media,
 							"print-color-mode": colorMode,
+							// CUPS EPSON-compatible grayscale: PPD option "Ink" (COLOR/MONO).
+							// CUPS ignores unknown PPD options on other printers, so this is safe universally.
+							...(colorMode === "color" && { Ink: "COLOR" }),
+							...(colorMode === "monochrome" && { Ink: "MONO" }),
 						},
 						data: buffer,
 					};
