@@ -39,7 +39,7 @@ export type IppPrinterFactory = (url: string) => IppPrinterInstance;
 const defaultPrinterFactory: IppPrinterFactory = (url) =>
 	IppPrinter(url) as unknown as IppPrinterInstance;
 
-export async function testIppConnection(
+export async function testCupsConnection(
 	host: string,
 	port: number,
 	username: string,
@@ -201,12 +201,19 @@ export class Printer implements INodeType {
 				this: ICredentialTestFunctions,
 				credential: ICredentialsDecrypted,
 			): Promise<INodeCredentialTestResult> {
-				const { host, port, username } = credential.data as {
+				const { host, port, username, connectionType } = credential.data as {
 					host: string;
 					port: number;
 					username: string;
+					connectionType: string;
 				};
-				return testIppConnection(host, port, username);
+				if (connectionType === "cups") {
+					return testCupsConnection(host, port, username);
+				}
+				return {
+					status: "Error",
+					message: `Unsupported connection type: ${connectionType}`,
+				};
 			},
 		},
 	};
