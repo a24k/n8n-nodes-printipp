@@ -365,7 +365,11 @@ const nodeDescription: INodeTypeDescription = {
 			name: "sides",
 			type: "resourceLocator",
 			required: false,
-			default: { mode: "list", value: "one-sided" },
+			default: {
+				mode: "list",
+				value: "one-sided",
+				cachedResultName: "One-Sided (IPP General)",
+			},
 			description: "Duplex printing setting",
 			modes: [
 				{
@@ -390,7 +394,11 @@ const nodeDescription: INodeTypeDescription = {
 			name: "media",
 			type: "resourceLocator",
 			required: false,
-			default: { mode: "list", value: "iso_a4_210x297mm" },
+			default: {
+				mode: "list",
+				value: "iso_a4_210x297mm",
+				cachedResultName: "A4 (IPP General)",
+			},
 			description:
 				"IPP media keyword. Select from printer-supported sizes or enter a PWG media keyword manually.",
 			modes: [
@@ -417,7 +425,11 @@ const nodeDescription: INodeTypeDescription = {
 			name: "colorMode",
 			type: "resourceLocator",
 			required: false,
-			default: { mode: "list", value: "color" },
+			default: {
+				mode: "list",
+				value: "color",
+				cachedResultName: "Color (IPP General)",
+			},
 			description: "Color printing mode",
 			modes: [
 				{
