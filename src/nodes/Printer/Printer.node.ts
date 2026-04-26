@@ -58,7 +58,11 @@ export async function testIppConnection(
 			);
 		});
 		const printerAttrs = response["printer-attributes-tag"];
-		const count = Array.isArray(printerAttrs) ? printerAttrs.length : 0;
+		const count = Array.isArray(printerAttrs)
+			? printerAttrs.length
+			: printerAttrs != null
+				? 1
+				: 0;
 		if (count === 0) {
 			return {
 				status: "Error",

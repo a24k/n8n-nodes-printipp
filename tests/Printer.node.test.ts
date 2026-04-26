@@ -426,10 +426,20 @@ describe("testIppConnection", () => {
 		expect(result.message).toBe("Connected successfully (2 printers found)");
 	});
 
-	it("returns OK with singular label for 1 printer", async () => {
+	it("returns OK with singular label for 1 printer (array)", async () => {
 		const factory = makeIppFactory(() => ({
 			statusCode: "successful-ok",
 			"printer-attributes-tag": [{}],
+		}));
+		const result = await testIppConnection("cupsd", 631, "n8n", factory);
+		expect(result.status).toBe("OK");
+		expect(result.message).toBe("Connected successfully (1 printer found)");
+	});
+
+	it("returns OK with 1 printer when ipp returns object instead of array", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
 		}));
 		const result = await testIppConnection("cupsd", 631, "n8n", factory);
 		expect(result.status).toBe("OK");
