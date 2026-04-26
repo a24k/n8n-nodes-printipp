@@ -6,6 +6,13 @@ export class IppApi implements ICredentialType {
 	documentationUrl = "https://github.com/a24k/n8n-nodes-printipp";
 	properties: INodeProperties[] = [
 		{
+			displayName: "Connection Type",
+			name: "connectionType",
+			type: "options",
+			options: [{ name: "CUPS Server", value: "cups" }],
+			default: "cups",
+		},
+		{
 			displayName: "Host",
 			name: "host",
 			type: "string",
