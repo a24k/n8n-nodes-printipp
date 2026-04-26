@@ -48,9 +48,9 @@ Sends a binary document to an IPP printer queue.
 | Printer Name | ✅ | — | Queue name. Select from the CUPS printer list (populated automatically) or type a name manually (e.g. `MyPrinter`). |
 | Binary Property | ✅ | `data` | n8n binary property name containing the document |
 | Copies | — | `1` | Number of copies |
-| Sides | — | `one-sided` | Duplex setting. Select from printer-supported values (loaded automatically when printer is selected) or type a value manually. |
-| Media | — | `iso_a4_210x297mm` | IPP media keyword. Select from printer-supported sizes (loaded automatically) or type a keyword manually. |
-| Color Mode | — | `color` | Color mode. Select from printer-supported values (loaded automatically) or type a value manually (e.g. `color`, `monochrome`). |
+| Sides | — | One-Sided | Duplex setting. Select from printer-supported values (loaded automatically when printer is selected) or type a value manually. |
+| Media | — | A4 | IPP media keyword. Select from printer-supported sizes (loaded automatically) or type a keyword manually. |
+| Color Mode | — | Color | Color mode. Select from printer-supported values (loaded automatically) or type a value manually (e.g. `color`, `monochrome`). |
 
 **Advanced Options:**
 

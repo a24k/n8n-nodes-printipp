@@ -49,7 +49,7 @@ A "Test connection" button is available in the credential UI.
 
 When a printer is selected in the Printer Name field, `Sides`, `Media`, and `Color Mode` load printer-specific supported values via `Get-Printer-Attributes` sent to `http://{host}:{port}/printers/{printerName}`. Requested attributes: `sides-supported`, `media-supported`, `print-color-mode-supported`.
 
-On fetch failure (network error, printer offline), each field silently falls back to IPP General defaults — standard IPP/PWG keyword values labeled `(IPP General)` in the dropdown. A notice in the node panel informs the user to select a printer to load specific options.
+On fetch failure (network error, printer offline), each field silently falls back to IPP General defaults — standard IPP/PWG keyword values labeled `(IPP General)` in the dropdown.
 
 ### Printer List (CUPS dropdown)
 
@@ -85,11 +85,11 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 | Printer Name | `resourceLocator` | ✅ | — | Printer queue name as registered on the CUPS server. Select from list (populated via `CUPS-Get-Printers`) or enter a queue name manually. |
 | Binary Property | `string` | ✅ | `data` | n8n binary property name containing the document to print |
 | Copies | `number` | — | `1` | Number of copies (IPP `copies` attribute) |
-| Sides | `resourceLocator` | — | `one-sided` | Duplex setting. Select from printer-supported values (loaded via `Get-Printer-Attributes`) or enter manually. Shows IPP General defaults when no printer selected. |
-| Media | `resourceLocator` | — | `iso_a4_210x297mm` | IPP media keyword. Select from printer-supported sizes or enter manually. Shows IPP General defaults when no printer selected. |
-| Color Mode | `resourceLocator` | — | `color` | Color printing mode. Select from printer-supported modes or enter an IPP `print-color-mode` keyword manually. |
+| Sides | `resourceLocator` | — | One-Sided (IPP General) | Duplex setting. Select from printer-supported values (loaded via `Get-Printer-Attributes`) or enter manually. Shows IPP General defaults when no printer selected. |
+| Media | `resourceLocator` | — | A4 (IPP General) | IPP media keyword. Select from printer-supported sizes or enter manually. Shows IPP General defaults when no printer selected. |
+| Color Mode | `resourceLocator` | — | Color (IPP General) | Color printing mode. Select from printer-supported modes or enter an IPP `print-color-mode` keyword manually. |
 
-**Sides options:**
+**Sides options (IPP General defaults):**
 
 | Display | IPP value |
 |---------|-----------|
@@ -97,10 +97,10 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 | Two-Sided (Long Edge / Portrait) | `two-sided-long-edge` |
 | Two-Sided (Short Edge / Landscape) | `two-sided-short-edge` |
 
-**Common Media values (free-text field with placeholder examples):**
+**Common Media values (IPP General defaults):**
 
-| Description | IPP keyword |
-|-------------|-------------|
+| Display | IPP value |
+|---------|-----------|
 | A4 | `iso_a4_210x297mm` |
 | US Letter | `na_letter_8.5x11in` |
 | A3 | `iso_a3_297x420mm` |
@@ -126,6 +126,12 @@ All three dynamic fields fall back silently to these standard IPP/PWG values. It
 | US Letter (IPP General) | `na_letter_8.5x11in` |
 | A3 (IPP General) | `iso_a3_297x420mm` |
 | US Legal (IPP General) | `na_legal_8.5x14in` |
+
+### Friendly Display Names for Printer-Specific Values
+
+When printer-specific values are fetched via `Get-Printer-Attributes`, known IPP/PWG keywords are mapped to human-readable labels. Unknown keywords fall back to the raw value. Custom sizes (`custom_*` keys) are rendered as `Custom (<dimensions>)`.
+
+Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, and `MEDIA_LABELS` maps plus a `labelMedia(v)` function (handles both the static map and the `custom_*` pattern). The `listPrinterAttribute` helper accepts a `labeler: (v: string) => string` function so each field can apply its own transform.
 
 **Color Mode**
 

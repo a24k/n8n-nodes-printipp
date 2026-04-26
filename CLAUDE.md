@@ -152,6 +152,27 @@ const buffer = await this.helpers.getBinaryDataBuffer(i, binaryProperty);
 
 `document-format` defaults to `application/pdf` and can be overridden via Advanced Options.
 
+### Dynamic Dropdown Fields (resourceLocator)
+
+`Sides`, `Media`, and `Color Mode` use `type: "resourceLocator"` with `list` + `id` modes. Each field's `listSearch` method calls `listPrinterAttribute` to fetch printer-specific values or fall back to static IPP General defaults.
+
+**`cachedResultName`** must be set in the field `default` so n8n displays the friendly name before the list is loaded:
+
+```typescript
+default: { mode: "list", value: "one-sided", cachedResultName: "One-Sided (IPP General)" }
+```
+
+**Labeler pattern** — `listPrinterAttribute` takes a `labeler: (v: string) => string` function so each field applies its own display transform. For media, `labelMedia(v)` checks a static map first, then handles `custom_*` keys dynamically:
+
+```typescript
+function labelMedia(v: string): string {
+  if (MEDIA_LABELS[v]) return MEDIA_LABELS[v];
+  const customMatch = /^custom_(\S+?)_\S+$/.exec(v);
+  if (customMatch) return `Custom (${customMatch[1]})`;
+  return v;
+}
+```
+
 ### continueOnFail
 
 Always wrap execution in try/catch and respect `this.continueOnFail()`.
