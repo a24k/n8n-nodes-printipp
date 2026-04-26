@@ -540,6 +540,12 @@ function createMockLoadOptionsFunctions(
 	} as unknown as ILoadOptionsFunctions;
 }
 
+function getCupsPrinters(node: PrintIpp) {
+	const fn = node.methods?.listSearch?.getCupsPrinters;
+	if (!fn) throw new Error("getCupsPrinters not found");
+	return fn;
+}
+
 describe("listSearch.getCupsPrinters", () => {
 	it("returns mapped results from CUPS", async () => {
 		const factory = makeIppFactory(() => ({
@@ -551,7 +557,7 @@ describe("listSearch.getCupsPrinters", () => {
 		}));
 		const node = new PrintIpp(factory);
 		const ctx = createMockLoadOptionsFunctions();
-		const result = await node.methods!.listSearch!.getCupsPrinters.call(ctx);
+		const result = await getCupsPrinters(node).call(ctx);
 		expect(result.results).toHaveLength(2);
 		expect(result.results[0]).toEqual({
 			name: "Office-Laser (3rd Floor)",
@@ -574,10 +580,7 @@ describe("listSearch.getCupsPrinters", () => {
 		}));
 		const node = new PrintIpp(factory);
 		const ctx = createMockLoadOptionsFunctions();
-		const result = await node.methods!.listSearch!.getCupsPrinters.call(
-			ctx,
-			"office",
-		);
+		const result = await getCupsPrinters(node).call(ctx, "office");
 		expect(result.results).toHaveLength(2);
 		expect(result.results.map((r) => r.value)).toEqual([
 			"Office-Laser",
@@ -595,10 +598,7 @@ describe("listSearch.getCupsPrinters", () => {
 		}));
 		const node = new PrintIpp(factory);
 		const ctx = createMockLoadOptionsFunctions();
-		const result = await node.methods!.listSearch!.getCupsPrinters.call(
-			ctx,
-			"color",
-		);
+		const result = await getCupsPrinters(node).call(ctx, "color");
 		expect(result.results).toHaveLength(1);
 		expect(result.results[0].value).toBe("LP1");
 	});
@@ -610,7 +610,7 @@ describe("listSearch.getCupsPrinters", () => {
 		}));
 		const node = new PrintIpp(factory);
 		const ctx = createMockLoadOptionsFunctions({ connectionType: "direct" });
-		const result = await node.methods!.listSearch!.getCupsPrinters.call(ctx);
+		const result = await getCupsPrinters(node).call(ctx);
 		expect(result.results).toEqual([]);
 	});
 
@@ -632,7 +632,7 @@ describe("listSearch.getCupsPrinters", () => {
 				};
 			},
 		} as unknown as ILoadOptionsFunctions;
-		await node.methods!.listSearch!.getCupsPrinters.call(ctx);
+		await getCupsPrinters(node).call(ctx);
 		expect(capturedNames).toEqual(["printIpp"]);
 	});
 });
