@@ -3,6 +3,7 @@ import { Printer as IppPrinter, operations as ippOperations } from "ipp";
 // CUPS-Get-Printers (0x4002) is a CUPS extension not included in the ipp package's
 // standard operations table. Add it so the serializer writes the correct op code.
 ippOperations["CUPS-Get-Printers"] = 0x4002;
+
 import type {
 	ICredentialsDecrypted,
 	ICredentialTestFunctions,

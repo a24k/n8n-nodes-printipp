@@ -26,5 +26,5 @@ declare module "ipp" {
 
 	const operations: Record<string, number>;
 
-	export { Printer, operations };
+	export { operations, Printer };
 }
