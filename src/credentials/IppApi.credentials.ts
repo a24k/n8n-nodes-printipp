@@ -17,7 +17,7 @@ export class IppApi implements ICredentialType {
 			name: "host",
 			type: "string",
 			default: "",
-			placeholder: "cupsd",
+			placeholder: "localhost",
 			description: "CUPS/IPP server hostname or IP address",
 		},
 		{
@@ -25,6 +25,7 @@ export class IppApi implements ICredentialType {
 			name: "port",
 			type: "number",
 			default: 631,
+			placeholder: "631",
 			description: "IPP port (default: 631)",
 		},
 		{
@@ -32,6 +33,7 @@ export class IppApi implements ICredentialType {
 			name: "username",
 			type: "string",
 			default: "n8n",
+			placeholder: "n8n",
 			description: "Value sent as requesting-user-name in IPP requests",
 		},
 	];
