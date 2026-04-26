@@ -10,7 +10,7 @@ It is updated incrementally as draft stories are completed and merged.
 | Item | Value |
 |------|-------|
 | Package name | `@a24k/n8n-nodes-printipp` |
-| Display name | `Printer (IPP) @a24k` |
+| Display name | `PrintIPP @a24k` |
 | npm keyword | `n8n-community-node-package` |
 | Target n8n version | 1.x and above |
 | Runtime dependencies | `ipp` ^2.0.1 (pure-JS IPP implementation, no system deps) |
@@ -24,7 +24,7 @@ It is updated incrementally as draft stories are completed and merged.
 
 ## Credential: `printIpp`
 
-Defined in `src/credentials/IppApi.credentials.ts`. Display name: **PrintIPP Endpoint**.
+Defined in `src/credentials/PrintIpp.credentials.ts`. Display name: **PrintIPP Endpoint**.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -39,11 +39,33 @@ The printer URI is constructed at runtime as `http://{host}:{port}/printers/{pri
 
 A "Test connection" button is available in the credential UI.
 
-- **Implementation:** `testedBy: "ippCredentialTest"` in the node description wires the button to `methods.credentialTest.ippCredentialTest` on the `Printer` node. The handler dispatches to `testCupsConnection()` based on `connectionType`.
+- **Implementation:** `testedBy: "printIppCredentialTest"` in the node description wires the button to `methods.credentialTest.printIppCredentialTest` on the `PrintIpp` node. The handler dispatches to `testCupsConnection()` based on `connectionType`.
 - **Protocol (CUPS):** Sends a `CUPS-Get-Printers` IPP operation to `http://{host}:{port}/` (the CUPS root endpoint, no printer name required). `CUPS-Get-Printers` (op code `0x4002`) is a CUPS extension not present in the `ipp` package's standard operations table and is registered at module load time via monkey-patch.
 - **Success:** Connection established and at least 1 printer found. n8n displays `"Connection tested successfully"` (n8n hardcodes this message for all OK results).
-- **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but returned 0 printers.
+- **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but the printer list was empty.
 - **Failure (network/IPP error):** `"Connection failed"` (any network or IPP error).
+
+### Printer Attribute Discovery
+
+When a printer is selected in the Printer Name field, `Sides`, `Media`, and `Color Mode` load printer-specific supported values via `Get-Printer-Attributes` sent to `http://{host}:{port}/printers/{printerName}`. Requested attributes: `sides-supported`, `media-supported`, `print-color-mode-supported`.
+
+On fetch failure (network error, printer offline), each field silently falls back to IPP General defaults — standard IPP/PWG keyword values labeled `(IPP General)` in the dropdown.
+
+### Printer List (CUPS dropdown)
+
+When `connectionType === "cups"`, the Printer Name field supports dynamic discovery via `methods.listSearch.getCupsPrinters`:
+
+- Sends `CUPS-Get-Printers` to the configured CUPS root endpoint.
+- Returns printer entries as `{ name, value }` where `name` is `printer-name (printer-info)` (or `printer-name` alone if no info) and `value` is `printer-name`.
+- Supports optional `filter` argument (case-insensitive substring match on name or info).
+- If `connectionType` is not `cups`, returns an empty list.
+- Implemented via the `fetchCupsPrinters(host, port, username, factory)` helper (also used by `testCupsConnection`).
+
+The `printerName` field uses `type: "resourceLocator"` with two modes:
+- **From List** (`list` mode): dropdown populated by `getCupsPrinters`, searchable.
+- **By Name** (`id` mode): free-text input with placeholder `MyPrinter`; allows manual entry when the CUPS server is unreachable from the n8n editor or when the queue name is known in advance.
+
+At runtime, `execute` reads the value using `{ extractValue: true }` so both modes resolve to a plain queue name string.
 
 ---
 
@@ -60,13 +82,14 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | Credential | `printIpp` | ✅ | — | Host, port, username |
-| Printer Name | `string` | ✅ | — | Printer queue name as registered in CUPS (e.g. `PX-M6010F`) |
+| Printer Name | `resourceLocator` | ✅ | — | Printer queue name as registered on the CUPS server. Select from list (populated via `CUPS-Get-Printers`) or enter a queue name manually. |
 | Binary Property | `string` | ✅ | `data` | n8n binary property name containing the document to print |
 | Copies | `number` | — | `1` | Number of copies (IPP `copies` attribute) |
-| Sides | `options` | — | `one-sided` | Duplex setting (see values below) |
-| Media | `string` | — | `iso_a4_210x297mm` | IPP media keyword (see common values below) |
+| Sides | `resourceLocator` | — | One-Sided (IPP General) | Duplex setting. Select from printer-supported values (loaded via `Get-Printer-Attributes`) or enter manually. Shows IPP General defaults when no printer selected. |
+| Media | `resourceLocator` | — | A4 (IPP General) | IPP media keyword. Select from printer-supported sizes or enter manually. Shows IPP General defaults when no printer selected. |
+| Color Mode | `resourceLocator` | — | Color (IPP General) | Color printing mode. Select from printer-supported modes or enter an IPP `print-color-mode` keyword manually. |
 
-**Sides options:**
+**Sides options (IPP General defaults):**
 
 | Display | IPP value |
 |---------|-----------|
@@ -74,14 +97,49 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 | Two-Sided (Long Edge / Portrait) | `two-sided-long-edge` |
 | Two-Sided (Short Edge / Landscape) | `two-sided-short-edge` |
 
-**Common Media values (free-text field with placeholder examples):**
+**Common Media values (IPP General defaults):**
 
-| Description | IPP keyword |
-|-------------|-------------|
+| Display | IPP value |
+|---------|-----------|
 | A4 | `iso_a4_210x297mm` |
 | US Letter | `na_letter_8.5x11in` |
 | A3 | `iso_a3_297x420mm` |
 | US Legal | `na_legal_8.5x14in` |
+
+### IPP General Defaults (shown when no printer selected or Get-Printer-Attributes fails)
+
+All three dynamic fields fall back silently to these standard IPP/PWG values. Items are labeled `(IPP General)` in the dropdown.
+
+**Sides**
+
+| Display | IPP value |
+|---------|-----------|
+| One-Sided (IPP General) | `one-sided` |
+| Two-Sided Long Edge (IPP General) | `two-sided-long-edge` |
+| Two-Sided Short Edge (IPP General) | `two-sided-short-edge` |
+
+**Media**
+
+| Display | IPP value |
+|---------|-----------|
+| A4 (IPP General) | `iso_a4_210x297mm` |
+| US Letter (IPP General) | `na_letter_8.5x11in` |
+| A3 (IPP General) | `iso_a3_297x420mm` |
+| US Legal (IPP General) | `na_legal_8.5x14in` |
+
+### Friendly Display Names for Printer-Specific Values
+
+When printer-specific values are fetched via `Get-Printer-Attributes`, known IPP/PWG keywords are mapped to human-readable labels. Unknown keywords fall back to the raw value. Custom sizes (`custom_*` keys) are rendered as `Custom (<dimensions>)`.
+
+Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, and `MEDIA_LABELS` maps plus a `labelMedia(v)` function (handles both the static map and the `custom_*` pattern). The `listPrinterAttribute` helper accepts a `labeler: (v: string) => string` function so each field can apply its own transform.
+
+**Color Mode**
+
+| Display | IPP value |
+|---------|-----------|
+| Color (IPP General) | `color` |
+| Monochrome (IPP General) | `monochrome` |
+| Auto (IPP General) | `auto` |
 
 #### Advanced Options (collection)
 
@@ -102,8 +160,9 @@ operation-attributes-tag:
 
 job-attributes-tag:
   copies                ← Copies
-  sides                 ← Sides
-  media                 ← Media
+  sides                 ← Sides (extracted from resourceLocator)
+  media                 ← Media (extracted from resourceLocator)
+  print-color-mode      ← Color Mode (extracted from resourceLocator)
 
 data                    ← binary buffer from Binary Property
 ```
@@ -123,7 +182,8 @@ The callback is wrapped in a `Promise` for async/await usage.
   "job-uri": "ipp://cupsd:631/jobs/42",
   "job-state": "pending",
   "job-state-reasons": "none",
-  "status-code": "successful-ok"
+  "status-code": "successful-ok",
+  "print-color-mode": "color"
 }
 ```
 
@@ -165,8 +225,6 @@ The `ipp` package encodes the IPP binary message and handles the HTTP transport 
 ## Out of Scope (Future Consideration)
 
 - TLS/IPPS support (`ipps://` scheme)
-- Get-Printer-Attributes operation (printer capability discovery)
 - Cancel-Job operation
-- Printer queue dropdown (dynamic population from CUPS API)
 - Multiple document support (multi-page job from separate binary items)
 - Authentication (HTTP Basic / Kerberos for CUPS)

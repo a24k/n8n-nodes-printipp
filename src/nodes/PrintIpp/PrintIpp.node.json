@@ -1,5 +1,5 @@
 {
-	"node": "n8n-nodes-printipp.printer",
+	"node": "n8n-nodes-printipp.printIpp",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Miscellaneous"],
