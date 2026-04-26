@@ -811,6 +811,31 @@ describe("listSearch.getMediaOptions", () => {
 			name: "A4",
 			value: "iso_a4_210x297mm",
 		});
+		expect(result.results[1]).toEqual({
+			name: "A3",
+			value: "iso_a3_297x420mm",
+		});
+	});
+
+	it("renders custom sizes as Custom (<dimensions>)", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": [],
+				"media-supported": ["custom_328.93x482.94mm_328.93x482.94mm"],
+				"print-color-mode-supported": [],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const node = new PrintIpp(factory);
+		const ctx = createMockLoadOptionsFunctions(undefined, {
+			printerName: "MyPrinter",
+		});
+		const result = await getMediaOptions(node).call(ctx);
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0]).toEqual({
+			name: "Custom (328.93x482.94mm)",
+			value: "custom_328.93x482.94mm_328.93x482.94mm",
+		});
 	});
 
 	it("falls back to IPP General defaults when fetch fails", async () => {

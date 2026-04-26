@@ -217,7 +217,21 @@ const MEDIA_LABELS: Record<string, string> = {
 	om_postcard_100x148mm: "Postcard (100×148mm)",
 	na_4x6_4x6in: "4×6 Photo",
 	na_5x7_5x7in: "5×7 Photo",
+	jpn_hagaki_100x148mm: "Hagaki (100×148mm)",
+	jpn_you4_105x235mm: "You4 Envelope (105×235mm)",
+	"oe_photo-l_3.5x5in": "Photo L (3.5×5in)",
+	"na_index-4x6_4x6in": "Index Card (4×6in)",
+	"na_govt-letter_8x10in": "Government Letter (8×10in)",
+	"oe_photo-10r_10x12in": "Photo 10R (10×12in)",
 };
+
+function labelMedia(v: string): string {
+	if (MEDIA_LABELS[v]) return MEDIA_LABELS[v];
+	// custom_<W>x<H><unit>_<W>x<H><unit> → "Custom (<W>x<H><unit>)"
+	const customMatch = /^custom_(\S+?)_\S+$/.exec(v);
+	if (customMatch) return `Custom (${customMatch[1]})`;
+	return v;
+}
 
 const COLOR_MODE_LABELS: Record<string, string> = {
 	color: "Color",
@@ -232,7 +246,7 @@ async function listPrinterAttribute(
 	ctx: ILoadOptionsFunctions,
 	attrKey: keyof PrinterAttributes,
 	defaults: Array<{ name: string; value: string }>,
-	labels: Record<string, string>,
+	labeler: (v: string) => string,
 	filter: string | undefined,
 	printerFactory: IppPrinterFactory,
 ): Promise<INodeListSearchResult> {
@@ -257,7 +271,7 @@ async function listPrinterAttribute(
 		);
 		const supported = attrs?.[attrKey] ?? [];
 		if (supported.length > 0) {
-			items = supported.map((v) => ({ name: labels[v] ?? v, value: v }));
+			items = supported.map((v) => ({ name: labeler(v), value: v }));
 		}
 	}
 
@@ -525,7 +539,7 @@ export class PrintIpp implements INodeType {
 						this,
 						"sidesSupported",
 						SIDES_DEFAULTS,
-						SIDES_LABELS,
+						(v) => SIDES_LABELS[v] ?? v,
 						filter,
 						printerFactory,
 					);
@@ -539,7 +553,7 @@ export class PrintIpp implements INodeType {
 						this,
 						"mediaSupported",
 						MEDIA_DEFAULTS,
-						MEDIA_LABELS,
+						labelMedia,
 						filter,
 						printerFactory,
 					);
@@ -553,7 +567,7 @@ export class PrintIpp implements INodeType {
 						this,
 						"colorModesSupported",
 						COLOR_MODE_DEFAULTS,
-						COLOR_MODE_LABELS,
+						(v) => COLOR_MODE_LABELS[v] ?? v,
 						filter,
 						printerFactory,
 					);
