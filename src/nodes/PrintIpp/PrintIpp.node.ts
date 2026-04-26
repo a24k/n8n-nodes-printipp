@@ -366,14 +366,6 @@ const nodeDescription: INodeTypeDescription = {
 			],
 		},
 		{
-			displayName: "",
-			name: "printerAttributesNotice",
-			type: "notice",
-			default: "",
-			description:
-				"Select a printer in the Printer Name field to load printer-specific options. Showing IPP General defaults.",
-		},
-		{
 			displayName: "Color Mode",
 			name: "colorMode",
 			type: "resourceLocator",
