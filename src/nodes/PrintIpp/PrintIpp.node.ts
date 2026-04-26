@@ -25,7 +25,9 @@ export interface IppResponse {
 		"job-state"?: string;
 		"job-state-reasons"?: string;
 	};
-	"printer-attributes-tag"?: Array<Record<string, unknown>>;
+	"printer-attributes-tag"?:
+		| Array<Record<string, unknown>>
+		| Record<string, unknown>;
 }
 
 export interface IppPrinterInstance {
@@ -44,6 +46,67 @@ const defaultPrinterFactory: IppPrinterFactory = (url) =>
 export interface CupsPrinterEntry {
 	name: string;
 	info?: string;
+}
+
+export interface PrinterAttributes {
+	sidesSupported: string[];
+	mediaSupported: string[];
+	colorModesSupported: string[];
+}
+
+function toStringArray(val: unknown): string[] {
+	if (Array.isArray(val))
+		return (val as unknown[]).filter((v): v is string => typeof v === "string");
+	if (typeof val === "string") return [val];
+	return [];
+}
+
+export async function fetchPrinterAttributes(
+	host: string,
+	port: number,
+	printerName: string,
+	username: string,
+	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+): Promise<PrinterAttributes | null> {
+	try {
+		const printerUrl = `http://${host}:${port}/printers/${printerName}`;
+		const printer = printerFactory(printerUrl);
+		const response = await new Promise<IppResponse>((resolve, reject) => {
+			printer.execute(
+				"Get-Printer-Attributes",
+				{
+					"operation-attributes-tag": {
+						"requesting-user-name": username,
+						"requested-attributes": [
+							"sides-supported",
+							"media-supported",
+							"print-color-mode-supported",
+						],
+					},
+				},
+				(err, res) => {
+					if (err) reject(err);
+					else resolve(res);
+				},
+			);
+		});
+
+		const rawAttrs = response["printer-attributes-tag"];
+		if (!rawAttrs) return null;
+		// Get-Printer-Attributes always returns a single object, but normalise
+		// in case the ipp library wraps it in a single-element array.
+		const attrs: Record<string, unknown> = Array.isArray(rawAttrs)
+			? (rawAttrs[0] ?? {})
+			: (rawAttrs as Record<string, unknown>);
+
+		return {
+			sidesSupported: toStringArray(attrs["sides-supported"]),
+			mediaSupported: toStringArray(attrs["media-supported"]),
+			colorModesSupported: toStringArray(attrs["print-color-mode-supported"]),
+		};
+	} catch {
+		return null;
+	}
 }
 
 export async function fetchCupsPrinters(

@@ -10,6 +10,7 @@ import type {
 } from "../src/nodes/PrintIpp/PrintIpp.node";
 import {
 	fetchCupsPrinters,
+	fetchPrinterAttributes,
 	PrintIpp,
 	testCupsConnection,
 } from "../src/nodes/PrintIpp/PrintIpp.node";
@@ -634,5 +635,112 @@ describe("listSearch.getCupsPrinters", () => {
 		} as unknown as ILoadOptionsFunctions;
 		await getCupsPrinters(node).call(ctx);
 		expect(capturedNames).toEqual(["printIpp"]);
+	});
+});
+
+describe("fetchPrinterAttributes", () => {
+	it("sends Get-Printer-Attributes to the printer URL", async () => {
+		const capturedUrls: string[] = [];
+		const capturedOps: string[] = [];
+		const factory = makeIppFactory((url, operation) => {
+			capturedUrls.push(url);
+			capturedOps.push(operation);
+			return {
+				statusCode: "successful-ok",
+				"printer-attributes-tag": {
+					"sides-supported": ["one-sided", "two-sided-long-edge"],
+					"media-supported": ["iso_a4_210x297mm"],
+					"print-color-mode-supported": ["color"],
+				} as unknown as Array<Record<string, unknown>>,
+			};
+		});
+		await fetchPrinterAttributes("cupsd", 631, "MyPrinter", "n8n", factory);
+		expect(capturedUrls[0]).toBe("http://cupsd:631/printers/MyPrinter");
+		expect(capturedOps[0]).toBe("Get-Printer-Attributes");
+	});
+
+	it("returns parsed attributes on success", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": ["one-sided", "two-sided-long-edge"],
+				"media-supported": ["iso_a4_210x297mm", "na_letter_8.5x11in"],
+				"print-color-mode-supported": ["color", "monochrome"],
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result).toEqual({
+			sidesSupported: ["one-sided", "two-sided-long-edge"],
+			mediaSupported: ["iso_a4_210x297mm", "na_letter_8.5x11in"],
+			colorModesSupported: ["color", "monochrome"],
+		});
+	});
+
+	it("wraps single-value string attribute in array", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {
+				"sides-supported": "one-sided",
+				"media-supported": "iso_a4_210x297mm",
+				"print-color-mode-supported": "color",
+			} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result?.sidesSupported).toEqual(["one-sided"]);
+		expect(result?.mediaSupported).toEqual(["iso_a4_210x297mm"]);
+		expect(result?.colorModesSupported).toEqual(["color"]);
+	});
+
+	it("returns null on network error", async () => {
+		const factory = makeIppFactory(() => new Error("Connection refused"));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result).toBeNull();
+	});
+
+	it("returns empty arrays for missing attributes", async () => {
+		const factory = makeIppFactory(() => ({
+			statusCode: "successful-ok",
+			"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+		}));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result?.sidesSupported).toEqual([]);
+		expect(result?.mediaSupported).toEqual([]);
+		expect(result?.colorModesSupported).toEqual([]);
+	});
+
+	it("returns null when printer-attributes-tag is absent", async () => {
+		const factory = makeIppFactory(() => ({ statusCode: "successful-ok" }));
+		const result = await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+		);
+		expect(result).toBeNull();
 	});
 });
