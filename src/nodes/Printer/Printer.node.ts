@@ -49,7 +49,7 @@ export async function testIppConnection(
 		const printer = printerFactory(cupsUrl);
 		const response = await new Promise<IppResponse>((resolve, reject) => {
 			printer.execute(
-				0x4002,
+				"CUPS-Get-Printers",
 				{
 					"operation-attributes-tag": {
 						"requesting-user-name": username,
