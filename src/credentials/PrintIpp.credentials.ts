@@ -13,6 +13,18 @@ export class PrintIpp implements ICredentialType {
 			default: "cups",
 		},
 		{
+			displayName: "Protocol",
+			name: "protocol",
+			type: "options",
+			options: [
+				{ name: "HTTP (IPP)", value: "http" },
+				{ name: "HTTPS (IPPS)", value: "https" },
+			],
+			default: "http",
+			description:
+				"Transport protocol. Use HTTPS for encrypted connections (IPPS).",
+		},
+		{
 			displayName: "Host",
 			name: "host",
 			type: "string",
@@ -35,6 +47,24 @@ export class PrintIpp implements ICredentialType {
 			default: "n8n",
 			placeholder: "n8n",
 			description: "Value sent as requesting-user-name in IPP requests",
+		},
+		{
+			displayName: "Password",
+			name: "password",
+			type: "string",
+			default: "",
+			typeOptions: { password: true },
+			description:
+				"HTTP Basic Authentication password. Leave empty to disable Basic Auth.",
+		},
+		{
+			displayName: "Skip Certificate Validation",
+			name: "skipCertValidation",
+			type: "boolean",
+			default: false,
+			displayOptions: { show: { protocol: ["https"] } },
+			description:
+				"Whether to accept self-signed or untrusted TLS certificates. Enable only for trusted private networks.",
 		},
 	];
 }

@@ -29,25 +29,29 @@ Defined in `src/credentials/PrintIpp.credentials.ts`. Display name: **PrintIPP E
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | Connection Type | `options` | — | `cups` | Server type. Currently `CUPS Server` only; reserved for future Direct IPP support. |
+| Protocol | `options` | — | `http` | Transport protocol: `HTTP (IPP)` or `HTTPS (IPPS)`. |
 | Host | `string` | ✅ | — | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
 | Port | `number` | — | `631` | IPP port |
 | Username | `string` | — | `n8n` | Value sent as `requesting-user-name` in every IPP request |
+| Password | `string` (secret) | — | `""` | HTTP Basic Authentication password. Leave empty to disable Basic Auth. |
+| Skip Certificate Validation | `boolean` | — | `false` | Accept self-signed or untrusted TLS certificates. Visible only when Protocol is HTTPS. |
 
-The printer URI is constructed at runtime as `http://{host}:{port}/printers/{printerName}`.
+The printer URI is constructed at runtime as `{protocol}://{host}:{port}/printers/{printerName}`. When `password` is non-empty, Basic Auth credentials are embedded: `{protocol}://{username}:{password}@{host}:{port}/printers/{printerName}`.
 
 ### Test Connection
 
 A "Test connection" button is available in the credential UI.
 
 - **Implementation:** `testedBy: "printIppCredentialTest"` in the node description wires the button to `methods.credentialTest.printIppCredentialTest` on the `PrintIpp` node. The handler dispatches to `testCupsConnection()` based on `connectionType`.
-- **Protocol (CUPS):** Sends a `CUPS-Get-Printers` IPP operation to `http://{host}:{port}/` (the CUPS root endpoint, no printer name required). `CUPS-Get-Printers` (op code `0x4002`) is a CUPS extension not present in the `ipp` package's standard operations table and is registered at module load time via monkey-patch.
+- **Protocol (CUPS):** Sends a `CUPS-Get-Printers` IPP operation to `{protocol}://{host}:{port}/` (the CUPS root endpoint, no printer name required). `CUPS-Get-Printers` (op code `0x4002`) is a CUPS extension not present in the `ipp` package's standard operations table and is registered at module load time via monkey-patch.
 - **Success:** Connection established and at least 1 printer found. n8n displays `"Connection tested successfully"` (n8n hardcodes this message for all OK results).
 - **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but the printer list was empty.
-- **Failure (network/IPP error):** `"Connection failed"` (any network or IPP error).
+- **Failure (certificate error):** `"Connection failed: certificate validation error"` — TLS handshake failed (e.g. self-signed cert). Enable **Skip Certificate Validation** to bypass.
+- **Failure (network/IPP error):** `"Connection failed"` (any other network or IPP error).
 
 ### Printer Attribute Discovery
 
-When a printer is selected in the Printer Name field, `Sides`, `Media`, and `Color Mode` load printer-specific supported values via `Get-Printer-Attributes` sent to `http://{host}:{port}/printers/{printerName}`. Requested attributes: `sides-supported`, `media-supported`, `print-color-mode-supported`.
+When a printer is selected in the Printer Name field, `Sides`, `Media`, and `Color Mode` load printer-specific supported values via `Get-Printer-Attributes` sent to `{protocol}://{host}:{port}/printers/{printerName}`. Requested attributes: `sides-supported`, `media-supported`, `print-color-mode-supported`.
 
 On fetch failure (network error, printer offline), each field silently falls back to IPP General defaults — standard IPP/PWG keyword values labeled `(IPP General)` in the dropdown.
 
@@ -59,7 +63,7 @@ When `connectionType === "cups"`, the Printer Name field supports dynamic discov
 - Returns printer entries as `{ name, value }` where `name` is `printer-name (printer-info)` (or `printer-name` alone if no info) and `value` is `printer-name`.
 - Supports optional `filter` argument (case-insensitive substring match on name or info).
 - If `connectionType` is not `cups`, returns an empty list.
-- Implemented via the `fetchCupsPrinters(host, port, username, factory)` helper (also used by `testCupsConnection`).
+- Implemented via the `fetchCupsPrinters(host, port, username, factory, protocol, password, skipCertValidation)` helper (also used by `testCupsConnection`).
 
 The `printerName` field uses `type: "resourceLocator"` with two modes:
 - **From List** (`list` mode): dropdown populated by `getCupsPrinters`, searchable.
@@ -208,7 +212,6 @@ Fields are taken directly from the IPP `Print-Job` response. `job-state` may be 
 - `continueOnFail()` is respected for all errors
 - `usableAsTool: true` is set for AI Agent node support
 - No system-level commands (`lp`, `lpr`, `cupsd` CLI) are invoked at runtime
-- All IPP communication goes over HTTP to the CUPS/IPP endpoint
 
 ---
 
@@ -216,15 +219,15 @@ Fields are taken directly from the IPP `Print-Job` response. `job-state` may be 
 
 | Protocol | Transport |
 |----------|-----------|
-| IPP/2.0 | HTTP POST to `http://{host}:{port}/printers/{printerName}` |
+| IPP/2.0 | HTTP POST to `{protocol}://{host}:{port}/printers/{printerName}` |
+| IPPS/2.0 | HTTPS POST (TLS) to `https://{host}:{port}/printers/{printerName}` |
 
-The `ipp` package encodes the IPP binary message and handles the HTTP transport internally.
+The `ipp` package encodes the IPP binary message and handles the HTTP/HTTPS transport internally. TLS options (`rejectUnauthorized`) are passed via the `IppConnectionOptions` interface to the `IppPrinterFactory`.
 
 ---
 
 ## Out of Scope (Future Consideration)
 
-- TLS/IPPS support (`ipps://` scheme)
 - Cancel-Job operation
 - Multiple document support (multi-page job from separate binary items)
-- Authentication (HTTP Basic / Kerberos for CUPS)
+- Kerberos authentication for CUPS

@@ -73,7 +73,9 @@ src/
       PrintIpp.node.ts      # Main node definition
       printipp.svg          # Node icon
   credentials/
-    PrintIpp.credentials.ts # host, port, username
+    PrintIpp.credentials.ts # Credential fields
+  types/
+    ipp.d.ts                # Ambient type declarations for the ipp package
 dist/                       # Compiled output (generated, do not edit)
 docs/
   requirements.md
@@ -91,11 +93,14 @@ Fields:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `connectionType` | `options` | `cups` | Server type. Currently `CUPS Server` only. |
+| `protocol` | `options` | `http` | Transport: `http` or `https`. |
 | `host` | `string` | — | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
 | `port` | `number` | `631` | IPP port |
 | `username` | `string` | `n8n` | `requesting-user-name` sent with each job |
+| `password` | `string` (secret) | `""` | HTTP Basic Auth password. Empty = no auth. |
+| `skipCertValidation` | `boolean` | `false` | Accept self-signed TLS certs. Shown only when `protocol = https`. |
 
-The printer URI is constructed at runtime: `http://{host}:{port}/printers/{printerName}`
+The printer URI is constructed at runtime via `buildIppUrl(protocol, host, port, path, username, password)`. Basic Auth credentials are embedded in the URL when `password` is non-empty.
 
 ### ipp Package
 
@@ -104,11 +109,22 @@ The node uses the [`ipp`](https://www.npmjs.com/package/ipp) npm package (v2.x) 
 The package uses callbacks. The node wraps them in a `Promise` via a local `executeIppJob` closure captured in the constructor. This pattern also enables dependency injection of a mock `IppPrinterFactory` in tests:
 
 ```typescript
-export type IppPrinterFactory = (url: string) => IppPrinterInstance;
+export interface IppConnectionOptions {
+  rejectUnauthorized: boolean;
+}
+
+export type IppPrinterFactory = (
+  url: string,
+  options: IppConnectionOptions,
+) => IppPrinterInstance;
 
 constructor(printerFactory: IppPrinterFactory = defaultPrinterFactory) {
-  const executeIppJob = (url: string, message: object): Promise<IppResponse> => {
-    const printer = printerFactory(url);
+  const executeIppJob = (
+    url: string,
+    options: IppConnectionOptions,
+    message: object,
+  ): Promise<IppResponse> => {
+    const printer = printerFactory(url, options);
     return new Promise((resolve, reject) => {
       printer.execute("Print-Job", message, (err, res) => {
         if (err) reject(err);
@@ -122,6 +138,29 @@ constructor(printerFactory: IppPrinterFactory = defaultPrinterFactory) {
 ```
 
 The `ipp` package has no TypeScript types. Declare a minimal ambient module in `src/types/ipp.d.ts`.
+
+### URL and Connection Helpers
+
+Two exported helpers centralise URL construction and TLS options:
+
+```typescript
+// Builds the full IPP URL; embeds Basic Auth when password is non-empty
+export function buildIppUrl(
+  protocol: string,
+  host: string,
+  port: number,
+  path: string,
+  username: string,
+  password: string,
+): string
+
+// Maps skipCertValidation → IppConnectionOptions
+export function buildConnectionOptions(
+  skipCertValidation: boolean,
+): IppConnectionOptions
+```
+
+All four call sites (`fetchPrinterAttributes`, `fetchCupsPrinters`, `executeIppJob`, `testCupsConnection`) use these helpers and read `protocol`, `password`, `skipCertValidation` from the credential.
 
 ### IPP Message Structure
 

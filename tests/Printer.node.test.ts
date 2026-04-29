@@ -4,11 +4,15 @@ import type {
 	ILoadOptionsFunctions,
 	INodeExecutionData,
 } from "n8n-workflow";
+import { PrintIpp as PrintIppCredential } from "../src/credentials/PrintIpp.credentials";
 import type {
+	IppConnectionOptions,
 	IppPrinterFactory,
 	IppResponse,
 } from "../src/nodes/PrintIpp/PrintIpp.node";
 import {
+	buildConnectionOptions,
+	buildIppUrl,
 	fetchCupsPrinters,
 	fetchPrinterAttributes,
 	PrintIpp,
@@ -22,7 +26,7 @@ function makeIppFactory(
 		message: object,
 	) => IppResponse | Error,
 ): IppPrinterFactory {
-	return (url: string) => ({
+	return (url: string, _options: IppConnectionOptions) => ({
 		execute: (
 			operation: string,
 			message: object,
@@ -431,6 +435,34 @@ describe("PrintIpp execute — successful print job", () => {
 		expect(requestedProps).toEqual(["myPdf"]);
 	});
 
+	it("builds https URL with Basic Auth when credentials specify them", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return {
+				statusCode: "successful-ok",
+				"job-attributes-tag": { "job-id": 1, "job-state": "pending" },
+			};
+		});
+
+		const ctx = createMockExecuteFunctions({
+			getCredentials: async () => ({
+				host: "myprinter",
+				port: 9631,
+				username: "admin",
+				protocol: "https",
+				password: "s3cr3t",
+				skipCertValidation: false,
+			}),
+		});
+		const node = new PrintIpp(factory);
+		await node.execute.call(ctx);
+
+		expect(capturedUrls[0]).toBe(
+			"https://admin:s3cr3t@myprinter:9631/printers/TestPrinter",
+		);
+	});
+
 	it("processes multiple items independently", async () => {
 		const capturedUrls: string[] = [];
 		const factory = makeIppFactory((url) => {
@@ -519,6 +551,25 @@ describe("testCupsConnection (CUPS-specific credential test)", () => {
 		expect(capturedOps[0]).toBe("CUPS-Get-Printers");
 	});
 
+	it("returns cert error message when error message contains CERT", async () => {
+		const factory = makeIppFactory(
+			() => new Error("SELF_SIGNED_CERT_IN_CHAIN"),
+		);
+		const result = await testCupsConnection(
+			"cupsd",
+			631,
+			"n8n",
+			factory,
+			"https",
+			"",
+			false,
+		);
+		expect(result.status).toBe("Error");
+		expect(result.message).toBe(
+			"Connection failed: certificate validation error",
+		);
+	});
+
 	it("returns OK with 2 printers found", async () => {
 		const factory = makeIppFactory(() => ({
 			statusCode: "successful-ok",
@@ -568,6 +619,34 @@ describe("testCupsConnection (CUPS-specific credential test)", () => {
 });
 
 describe("fetchCupsPrinters", () => {
+	it("uses https URL when protocol is https", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return { statusCode: "successful-ok", "printer-attributes-tag": [] };
+		});
+		await fetchCupsPrinters("cupsd", 631, "n8n", factory, "https", "", false);
+		expect(capturedUrls[0]).toBe("https://cupsd:631/");
+	});
+
+	it("embeds Basic Auth when password is set", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return { statusCode: "successful-ok", "printer-attributes-tag": [] };
+		});
+		await fetchCupsPrinters(
+			"cupsd",
+			631,
+			"admin",
+			factory,
+			"https",
+			"s3cr3t",
+			false,
+		);
+		expect(capturedUrls[0]).toBe("https://admin:s3cr3t@cupsd:631/");
+	});
+
 	it("maps printer-name and printer-info from attrs", async () => {
 		const factory = makeIppFactory(() => ({
 			statusCode: "successful-ok",
@@ -610,6 +689,9 @@ function createMockLoadOptionsFunctions(
 		port: number;
 		username: string;
 		connectionType: string;
+		protocol: string;
+		password: string;
+		skipCertValidation: boolean;
 	}>,
 	currentNodeParams?: Record<string, unknown>,
 ): ILoadOptionsFunctions {
@@ -618,6 +700,9 @@ function createMockLoadOptionsFunctions(
 		port: 631,
 		username: "n8n",
 		connectionType: "cups",
+		protocol: "http",
+		password: "",
+		skipCertValidation: false,
 		...credentialsOverride,
 	};
 	const nodeParams = currentNodeParams ?? {};
@@ -1122,5 +1207,166 @@ describe("fetchPrinterAttributes", () => {
 			factory,
 		);
 		expect(result).toBeNull();
+	});
+
+	it("uses https URL when protocol is https", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return {
+				statusCode: "successful-ok",
+				"printer-attributes-tag": {} as unknown as Array<
+					Record<string, unknown>
+				>,
+			};
+		});
+		await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+			"https",
+			"",
+			false,
+		);
+		expect(capturedUrls[0]).toBe("https://cupsd:631/printers/MyPrinter");
+	});
+
+	it("embeds Basic Auth in URL when password is set", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return {
+				statusCode: "successful-ok",
+				"printer-attributes-tag": {} as unknown as Array<
+					Record<string, unknown>
+				>,
+			};
+		});
+		await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"admin",
+			factory,
+			"https",
+			"s3cr3t",
+			false,
+		);
+		expect(capturedUrls[0]).toBe(
+			"https://admin:s3cr3t@cupsd:631/printers/MyPrinter",
+		);
+	});
+
+	it("passes rejectUnauthorized false when skipCertValidation is true", async () => {
+		const capturedOptions: IppConnectionOptions[] = [];
+		const factory: IppPrinterFactory = (_url, options) => {
+			capturedOptions.push(options);
+			return {
+				execute: (_op, _msg, cb) =>
+					cb(null, {
+						statusCode: "successful-ok",
+						"printer-attributes-tag": {} as unknown as Array<
+							Record<string, unknown>
+						>,
+					}),
+			};
+		};
+		await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+			"https",
+			"",
+			true,
+		);
+		expect(capturedOptions[0]).toEqual({ rejectUnauthorized: false });
+	});
+});
+
+describe("buildIppUrl", () => {
+	it("returns http URL without auth when no password", () => {
+		expect(buildIppUrl("http", "cupsd", 631, "/printers/LP1", "n8n", "")).toBe(
+			"http://cupsd:631/printers/LP1",
+		);
+	});
+
+	it("returns https URL without auth when no password", () => {
+		expect(buildIppUrl("https", "cupsd", 631, "/printers/LP1", "n8n", "")).toBe(
+			"https://cupsd:631/printers/LP1",
+		);
+	});
+
+	it("embeds Basic Auth when password is provided", () => {
+		expect(
+			buildIppUrl("https", "cupsd", 631, "/printers/LP1", "admin", "s3cr3t"),
+		).toBe("https://admin:s3cr3t@cupsd:631/printers/LP1");
+	});
+
+	it("percent-encodes special characters in username and password", () => {
+		expect(
+			buildIppUrl("https", "cupsd", 631, "/", "user@domain", "p@ss:word"),
+		).toBe("https://user%40domain:p%40ss%3Aword@cupsd:631/");
+	});
+});
+
+describe("buildConnectionOptions", () => {
+	it("returns rejectUnauthorized true when skipCertValidation is false", () => {
+		expect(buildConnectionOptions(false)).toEqual({ rejectUnauthorized: true });
+	});
+
+	it("returns rejectUnauthorized false when skipCertValidation is true", () => {
+		expect(buildConnectionOptions(true)).toEqual({ rejectUnauthorized: false });
+	});
+});
+
+describe("IppPrinterFactory options plumbing", () => {
+	it("passes IppConnectionOptions to the factory", async () => {
+		const capturedOptions: unknown[] = [];
+		const factory: IppPrinterFactory = (_url, options) => {
+			capturedOptions.push(options);
+			return {
+				execute: (_op, _msg, cb) =>
+					cb(null, {
+						statusCode: "successful-ok",
+						"printer-attributes-tag": [],
+					}),
+			};
+		};
+		await fetchCupsPrinters("cupsd", 631, "n8n", factory);
+		expect(capturedOptions[0]).toEqual({ rejectUnauthorized: true });
+	});
+});
+
+describe("PrintIpp credential fields", () => {
+	it("has protocol field defaulting to http", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "protocol");
+		expect(field).toBeDefined();
+		expect(field?.default).toBe("http");
+	});
+
+	it("has password field of type string", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "password");
+		expect(field).toBeDefined();
+		expect(field?.type).toBe("string");
+	});
+
+	it("has skipCertValidation field defaulting to false", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "skipCertValidation");
+		expect(field).toBeDefined();
+		expect(field?.default).toBe(false);
+	});
+
+	it("skipCertValidation only shows when protocol is https", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "skipCertValidation");
+		const showCondition = field?.displayOptions?.show?.protocol;
+		expect(showCondition).toEqual(["https"]);
 	});
 });

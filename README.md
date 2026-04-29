@@ -6,7 +6,7 @@ An [n8n](https://n8n.io/) community node that sends print jobs to IPP-capable pr
 
 ## Why this node
 
-Standard n8n has no built-in printing node. Common workarounds (Execute Command with `lp`) require the n8n host to have CUPS client tools installed and configured. This node communicates with any IPP endpoint over HTTP, making it work in any Docker or cloud deployment.
+Standard n8n has no built-in printing node. Common workarounds (Execute Command with `lp`) require the n8n host to have CUPS client tools installed and configured. This node communicates with any IPP endpoint over HTTP or HTTPS, making it work in any Docker or cloud deployment.
 
 ## Installation
 
@@ -29,13 +29,16 @@ Create a new **PrintIPP Endpoint** credential with:
 | Field | Description | Default |
 |-------|-------------|---------|
 | Connection Type | Server type (`CUPS Server` only for now) | `CUPS Server` |
+| Protocol | `HTTP (IPP)` for plain HTTP, `HTTPS (IPPS)` for TLS-encrypted connections | `HTTP (IPP)` |
 | Host | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) | — |
 | Port | IPP port | `631` |
 | Username | Value sent as `requesting-user-name` | `n8n` |
+| Password | HTTP Basic Authentication password. Leave empty to disable. | — |
+| Skip Certificate Validation | Accept self-signed TLS certificates (shown when Protocol is HTTPS) | `false` |
 
 Use the **Test connection** button to verify connectivity before saving.
 
-The printer URI is constructed as `http://{host}:{port}/printers/{printerName}`.
+The printer URI is constructed as `{protocol}://{host}:{port}/printers/{printerName}` (with Basic Auth embedded when a password is set).
 
 ## Operation: Print Job
 
