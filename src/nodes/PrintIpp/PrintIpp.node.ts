@@ -91,6 +91,7 @@ export async function fetchPrinterAttributes(
 ): Promise<PrinterAttributes | null> {
 	try {
 		const printerUrl = `http://${host}:${port}/printers/${printerName}`;
+		// Replaced with buildConnectionOptions(skipCertValidation) in Task 3–5
 		const printer = printerFactory(printerUrl, { rejectUnauthorized: true });
 		const response = await new Promise<IppResponse>((resolve, reject) => {
 			printer.execute(
@@ -137,6 +138,7 @@ export async function fetchCupsPrinters(
 	printerFactory: IppPrinterFactory = defaultPrinterFactory,
 ): Promise<CupsPrinterEntry[]> {
 	const cupsUrl = `http://${host}:${port}/`;
+	// Replaced with buildConnectionOptions(skipCertValidation) in Task 3–5
 	const printer = printerFactory(cupsUrl, { rejectUnauthorized: true });
 	const response = await new Promise<IppResponse>((resolve, reject) => {
 		printer.execute(
@@ -612,6 +614,7 @@ export class PrintIpp implements INodeType {
 			printerUrl: string,
 			message: object,
 		): Promise<IppResponse> => {
+			// Replaced with buildConnectionOptions(skipCertValidation) in Task 3–5
 			const printer = printerFactory(printerUrl, { rejectUnauthorized: true });
 			return new Promise((resolve, reject) => {
 				printer.execute("Print-Job", message, (err, res) => {
