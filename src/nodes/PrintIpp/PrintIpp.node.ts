@@ -166,10 +166,13 @@ export async function fetchCupsPrinters(
 	port: number,
 	username: string,
 	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+	protocol = "http",
+	password = "",
+	skipCertValidation = false,
 ): Promise<CupsPrinterEntry[]> {
-	const cupsUrl = `http://${host}:${port}/`;
-	// Replaced with buildConnectionOptions(skipCertValidation) in Task 3–5
-	const printer = printerFactory(cupsUrl, { rejectUnauthorized: true });
+	const cupsUrl = buildIppUrl(protocol, host, port, "/", username, password);
+	const connectionOptions = buildConnectionOptions(skipCertValidation);
+	const printer = printerFactory(cupsUrl, connectionOptions);
 	const response = await new Promise<IppResponse>((resolve, reject) => {
 		printer.execute(
 			"CUPS-Get-Printers",
@@ -203,6 +206,9 @@ export async function testCupsConnection(
 	port: number,
 	username: string,
 	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+	protocol = "http",
+	password = "",
+	skipCertValidation = false,
 ): Promise<INodeCredentialTestResult> {
 	try {
 		const printers = await fetchCupsPrinters(
@@ -210,6 +216,9 @@ export async function testCupsConnection(
 			port,
 			username,
 			printerFactory,
+			protocol,
+			password,
+			skipCertValidation,
 		);
 		const count = printers.length;
 		if (count === 0) {
@@ -222,7 +231,14 @@ export async function testCupsConnection(
 			status: "OK",
 			message: `Connected successfully (${count} ${count === 1 ? "printer" : "printers"} found)`,
 		};
-	} catch {
+	} catch (error: unknown) {
+		const msg = error instanceof Error ? error.message : String(error);
+		if (/certificate|CERT/i.test(msg)) {
+			return {
+				status: "Error",
+				message: "Connection failed: certificate validation error",
+			};
+		}
 		return {
 			status: "Error",
 			message: "Connection failed",

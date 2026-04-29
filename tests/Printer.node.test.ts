@@ -522,6 +522,25 @@ describe("testCupsConnection (CUPS-specific credential test)", () => {
 		expect(capturedOps[0]).toBe("CUPS-Get-Printers");
 	});
 
+	it("returns cert error message when error message contains CERT", async () => {
+		const factory = makeIppFactory(
+			() => new Error("SELF_SIGNED_CERT_IN_CHAIN"),
+		);
+		const result = await testCupsConnection(
+			"cupsd",
+			631,
+			"n8n",
+			factory,
+			"https",
+			"",
+			false,
+		);
+		expect(result.status).toBe("Error");
+		expect(result.message).toBe(
+			"Connection failed: certificate validation error",
+		);
+	});
+
 	it("returns OK with 2 printers found", async () => {
 		const factory = makeIppFactory(() => ({
 			statusCode: "successful-ok",
@@ -571,6 +590,34 @@ describe("testCupsConnection (CUPS-specific credential test)", () => {
 });
 
 describe("fetchCupsPrinters", () => {
+	it("uses https URL when protocol is https", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return { statusCode: "successful-ok", "printer-attributes-tag": [] };
+		});
+		await fetchCupsPrinters("cupsd", 631, "n8n", factory, "https", "", false);
+		expect(capturedUrls[0]).toBe("https://cupsd:631/");
+	});
+
+	it("embeds Basic Auth when password is set", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return { statusCode: "successful-ok", "printer-attributes-tag": [] };
+		});
+		await fetchCupsPrinters(
+			"cupsd",
+			631,
+			"admin",
+			factory,
+			"https",
+			"s3cr3t",
+			false,
+		);
+		expect(capturedUrls[0]).toBe("https://admin:s3cr3t@cupsd:631/");
+	});
+
 	it("maps printer-name and printer-info from attrs", async () => {
 		const factory = makeIppFactory(() => ({
 			statusCode: "successful-ok",
