@@ -110,11 +110,21 @@ export async function fetchPrinterAttributes(
 	printerName: string,
 	username: string,
 	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+	protocol = "http",
+	password = "",
+	skipCertValidation = false,
 ): Promise<PrinterAttributes | null> {
 	try {
-		const printerUrl = `http://${host}:${port}/printers/${printerName}`;
-		// Replaced with buildConnectionOptions(skipCertValidation) in Task 3–5
-		const printer = printerFactory(printerUrl, { rejectUnauthorized: true });
+		const printerUrl = buildIppUrl(
+			protocol,
+			host,
+			port,
+			`/printers/${printerName}`,
+			username,
+			password,
+		);
+		const connectionOptions = buildConnectionOptions(skipCertValidation);
+		const printer = printerFactory(printerUrl, connectionOptions);
 		const response = await new Promise<IppResponse>((resolve, reject) => {
 			printer.execute(
 				"Get-Printer-Attributes",
@@ -137,8 +147,6 @@ export async function fetchPrinterAttributes(
 
 		const rawAttrs = response["printer-attributes-tag"];
 		if (!rawAttrs) return null;
-		// Get-Printer-Attributes always returns a single object, but normalise
-		// in case the ipp library wraps it in a single-element array.
 		const attrs: Record<string, unknown> = Array.isArray(rawAttrs)
 			? (rawAttrs[0] ?? {})
 			: (rawAttrs as Record<string, unknown>);
@@ -296,11 +304,15 @@ async function listPrinterAttribute(
 	printerFactory: IppPrinterFactory,
 ): Promise<INodeListSearchResult> {
 	const credentials = await ctx.getCredentials("printIpp");
-	const { host, port, username } = credentials as {
-		host: string;
-		port: number;
-		username: string;
-	};
+	const { host, port, username, protocol, password, skipCertValidation } =
+		credentials as {
+			host: string;
+			port: number;
+			username: string;
+			protocol: string;
+			password: string;
+			skipCertValidation: boolean;
+		};
 	const printerName = ctx.getCurrentNodeParameter("printerName", {
 		extractValue: true,
 	}) as string;
@@ -313,6 +325,9 @@ async function listPrinterAttribute(
 			printerName,
 			username,
 			printerFactory,
+			protocol ?? "http",
+			password ?? "",
+			skipCertValidation ?? false,
 		);
 		const supported = attrs?.[attrKey] ?? [];
 		if (supported.length > 0) {

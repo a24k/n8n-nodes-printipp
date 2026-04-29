@@ -613,6 +613,9 @@ function createMockLoadOptionsFunctions(
 		port: number;
 		username: string;
 		connectionType: string;
+		protocol: string;
+		password: string;
+		skipCertValidation: boolean;
 	}>,
 	currentNodeParams?: Record<string, unknown>,
 ): ILoadOptionsFunctions {
@@ -621,6 +624,9 @@ function createMockLoadOptionsFunctions(
 		port: 631,
 		username: "n8n",
 		connectionType: "cups",
+		protocol: "http",
+		password: "",
+		skipCertValidation: false,
 		...credentialsOverride,
 	};
 	const nodeParams = currentNodeParams ?? {};
@@ -1125,6 +1131,75 @@ describe("fetchPrinterAttributes", () => {
 			factory,
 		);
 		expect(result).toBeNull();
+	});
+
+	it("uses https URL when protocol is https", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return {
+				statusCode: "successful-ok",
+				"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+			};
+		});
+		await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+			"https",
+			"",
+			false,
+		);
+		expect(capturedUrls[0]).toBe("https://cupsd:631/printers/MyPrinter");
+	});
+
+	it("embeds Basic Auth in URL when password is set", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return {
+				statusCode: "successful-ok",
+				"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+			};
+		});
+		await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"admin",
+			factory,
+			"https",
+			"s3cr3t",
+			false,
+		);
+		expect(capturedUrls[0]).toBe("https://admin:s3cr3t@cupsd:631/printers/MyPrinter");
+	});
+
+	it("passes rejectUnauthorized false when skipCertValidation is true", async () => {
+		const capturedOptions: IppConnectionOptions[] = [];
+		const factory: IppPrinterFactory = (url, options) => {
+			capturedOptions.push(options);
+			return {
+				execute: (_op, _msg, cb) =>
+					cb(null, {
+						statusCode: "successful-ok",
+						"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+					}),
+			};
+		};
+		await fetchPrinterAttributes(
+			"cupsd",
+			631,
+			"MyPrinter",
+			"n8n",
+			factory,
+			"https",
+			"",
+			true,
+		);
+		expect(capturedOptions[0]).toEqual({ rejectUnauthorized: false });
 	});
 });
 
