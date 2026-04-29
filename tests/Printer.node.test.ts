@@ -10,6 +10,8 @@ import type {
 	IppResponse,
 } from "../src/nodes/PrintIpp/PrintIpp.node";
 import {
+	buildConnectionOptions,
+	buildIppUrl,
 	fetchCupsPrinters,
 	fetchPrinterAttributes,
 	PrintIpp,
@@ -1123,6 +1125,42 @@ describe("fetchPrinterAttributes", () => {
 			factory,
 		);
 		expect(result).toBeNull();
+	});
+});
+
+describe("buildIppUrl", () => {
+	it("returns http URL without auth when no password", () => {
+		expect(buildIppUrl("http", "cupsd", 631, "/printers/LP1", "n8n", "")).toBe(
+			"http://cupsd:631/printers/LP1",
+		);
+	});
+
+	it("returns https URL without auth when no password", () => {
+		expect(buildIppUrl("https", "cupsd", 631, "/printers/LP1", "n8n", "")).toBe(
+			"https://cupsd:631/printers/LP1",
+		);
+	});
+
+	it("embeds Basic Auth when password is provided", () => {
+		expect(
+			buildIppUrl("https", "cupsd", 631, "/printers/LP1", "admin", "s3cr3t"),
+		).toBe("https://admin:s3cr3t@cupsd:631/printers/LP1");
+	});
+
+	it("percent-encodes special characters in username and password", () => {
+		expect(
+			buildIppUrl("https", "cupsd", 631, "/", "user@domain", "p@ss:word"),
+		).toBe("https://user%40domain:p%40ss%3Aword@cupsd:631/");
+	});
+});
+
+describe("buildConnectionOptions", () => {
+	it("returns rejectUnauthorized true when skipCertValidation is false", () => {
+		expect(buildConnectionOptions(false)).toEqual({ rejectUnauthorized: true });
+	});
+
+	it("returns rejectUnauthorized false when skipCertValidation is true", () => {
+		expect(buildConnectionOptions(true)).toEqual({ rejectUnauthorized: false });
 	});
 });
 

@@ -64,6 +64,28 @@ export type IppPrinterFactory = (
 const defaultPrinterFactory: IppPrinterFactory = (url, options) =>
 	IppPrinter(url, options) as unknown as IppPrinterInstance;
 
+export function buildIppUrl(
+	protocol: string,
+	host: string,
+	port: number,
+	path: string,
+	username: string,
+	password: string,
+): string {
+	if (password) {
+		const u = encodeURIComponent(username);
+		const p = encodeURIComponent(password);
+		return `${protocol}://${u}:${p}@${host}:${port}${path}`;
+	}
+	return `${protocol}://${host}:${port}${path}`;
+}
+
+export function buildConnectionOptions(
+	skipCertValidation: boolean,
+): IppConnectionOptions {
+	return { rejectUnauthorized: !skipCertValidation };
+}
+
 export interface CupsPrinterEntry {
 	name: string;
 	info?: string;
