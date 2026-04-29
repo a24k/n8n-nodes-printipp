@@ -17,6 +17,7 @@ import {
 	PrintIpp,
 	testCupsConnection,
 } from "../src/nodes/PrintIpp/PrintIpp.node";
+import { PrintIpp as PrintIppCredential } from "../src/credentials/PrintIpp.credentials";
 
 function makeIppFactory(
 	handler: (
@@ -1329,5 +1330,35 @@ describe("IppPrinterFactory options plumbing", () => {
 		};
 		await fetchCupsPrinters("cupsd", 631, "n8n", factory);
 		expect(capturedOptions[0]).toEqual({ rejectUnauthorized: true });
+	});
+});
+
+describe("PrintIpp credential fields", () => {
+	it("has protocol field defaulting to http", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "protocol");
+		expect(field).toBeDefined();
+		expect(field?.default).toBe("http");
+	});
+
+	it("has password field of type string", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "password");
+		expect(field).toBeDefined();
+		expect(field?.type).toBe("string");
+	});
+
+	it("has skipCertValidation field defaulting to false", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "skipCertValidation");
+		expect(field).toBeDefined();
+		expect(field?.default).toBe(false);
+	});
+
+	it("skipCertValidation only shows when protocol is https", () => {
+		const cred = new PrintIppCredential();
+		const field = cred.properties.find((p) => p.name === "skipCertValidation");
+		const showCondition = field?.displayOptions?.show?.["protocol"];
+		expect(showCondition).toEqual(["https"]);
 	});
 });
