@@ -4,6 +4,7 @@ declare module "ipp" {
 		language?: string;
 		uri?: string;
 		version?: string;
+		rejectUnauthorized?: boolean;
 	}
 
 	type IppCallback = (err: Error | null, res: IppResponse) => void;

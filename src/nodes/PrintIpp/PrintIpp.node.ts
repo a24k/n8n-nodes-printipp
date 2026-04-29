@@ -52,10 +52,17 @@ export interface IppPrinterInstance {
 	): void;
 }
 
-export type IppPrinterFactory = (url: string) => IppPrinterInstance;
+export interface IppConnectionOptions {
+	rejectUnauthorized: boolean;
+}
 
-const defaultPrinterFactory: IppPrinterFactory = (url) =>
-	IppPrinter(url) as unknown as IppPrinterInstance;
+export type IppPrinterFactory = (
+	url: string,
+	options: IppConnectionOptions,
+) => IppPrinterInstance;
+
+const defaultPrinterFactory: IppPrinterFactory = (url, options) =>
+	IppPrinter(url, options) as unknown as IppPrinterInstance;
 
 export interface CupsPrinterEntry {
 	name: string;
@@ -84,7 +91,7 @@ export async function fetchPrinterAttributes(
 ): Promise<PrinterAttributes | null> {
 	try {
 		const printerUrl = `http://${host}:${port}/printers/${printerName}`;
-		const printer = printerFactory(printerUrl);
+		const printer = printerFactory(printerUrl, { rejectUnauthorized: true });
 		const response = await new Promise<IppResponse>((resolve, reject) => {
 			printer.execute(
 				"Get-Printer-Attributes",
@@ -130,7 +137,7 @@ export async function fetchCupsPrinters(
 	printerFactory: IppPrinterFactory = defaultPrinterFactory,
 ): Promise<CupsPrinterEntry[]> {
 	const cupsUrl = `http://${host}:${port}/`;
-	const printer = printerFactory(cupsUrl);
+	const printer = printerFactory(cupsUrl, { rejectUnauthorized: true });
 	const response = await new Promise<IppResponse>((resolve, reject) => {
 		printer.execute(
 			"CUPS-Get-Printers",
@@ -605,7 +612,7 @@ export class PrintIpp implements INodeType {
 			printerUrl: string,
 			message: object,
 		): Promise<IppResponse> => {
-			const printer = printerFactory(printerUrl);
+			const printer = printerFactory(printerUrl, { rejectUnauthorized: true });
 			return new Promise((resolve, reject) => {
 				printer.execute("Print-Job", message, (err, res) => {
 					if (err) reject(err);

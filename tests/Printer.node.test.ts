@@ -5,6 +5,7 @@ import type {
 	INodeExecutionData,
 } from "n8n-workflow";
 import type {
+	IppConnectionOptions,
 	IppPrinterFactory,
 	IppResponse,
 } from "../src/nodes/PrintIpp/PrintIpp.node";
@@ -22,7 +23,7 @@ function makeIppFactory(
 		message: object,
 	) => IppResponse | Error,
 ): IppPrinterFactory {
-	return (url: string) => ({
+	return (url: string, _options: IppConnectionOptions) => ({
 		execute: (
 			operation: string,
 			message: object,
@@ -1122,5 +1123,23 @@ describe("fetchPrinterAttributes", () => {
 			factory,
 		);
 		expect(result).toBeNull();
+	});
+});
+
+describe("IppPrinterFactory options plumbing", () => {
+	it("passes IppConnectionOptions to the factory", async () => {
+		const capturedOptions: unknown[] = [];
+		const factory: IppPrinterFactory = (url, options) => {
+			capturedOptions.push(options);
+			return {
+				execute: (_op, _msg, cb) =>
+					cb(null, {
+						statusCode: "successful-ok",
+						"printer-attributes-tag": [],
+					}),
+			};
+		};
+		await fetchCupsPrinters("cupsd", 631, "n8n", factory);
+		expect(capturedOptions[0]).toEqual({ rejectUnauthorized: true });
 	});
 });
