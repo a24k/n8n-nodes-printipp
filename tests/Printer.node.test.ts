@@ -4,6 +4,7 @@ import type {
 	ILoadOptionsFunctions,
 	INodeExecutionData,
 } from "n8n-workflow";
+import { PrintIpp as PrintIppCredential } from "../src/credentials/PrintIpp.credentials";
 import type {
 	IppConnectionOptions,
 	IppPrinterFactory,
@@ -17,7 +18,6 @@ import {
 	PrintIpp,
 	testCupsConnection,
 } from "../src/nodes/PrintIpp/PrintIpp.node";
-import { PrintIpp as PrintIppCredential } from "../src/credentials/PrintIpp.credentials";
 
 function makeIppFactory(
 	handler: (
@@ -1215,7 +1215,9 @@ describe("fetchPrinterAttributes", () => {
 			capturedUrls.push(url);
 			return {
 				statusCode: "successful-ok",
-				"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+				"printer-attributes-tag": {} as unknown as Array<
+					Record<string, unknown>
+				>,
 			};
 		});
 		await fetchPrinterAttributes(
@@ -1237,7 +1239,9 @@ describe("fetchPrinterAttributes", () => {
 			capturedUrls.push(url);
 			return {
 				statusCode: "successful-ok",
-				"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+				"printer-attributes-tag": {} as unknown as Array<
+					Record<string, unknown>
+				>,
 			};
 		});
 		await fetchPrinterAttributes(
@@ -1250,18 +1254,22 @@ describe("fetchPrinterAttributes", () => {
 			"s3cr3t",
 			false,
 		);
-		expect(capturedUrls[0]).toBe("https://admin:s3cr3t@cupsd:631/printers/MyPrinter");
+		expect(capturedUrls[0]).toBe(
+			"https://admin:s3cr3t@cupsd:631/printers/MyPrinter",
+		);
 	});
 
 	it("passes rejectUnauthorized false when skipCertValidation is true", async () => {
 		const capturedOptions: IppConnectionOptions[] = [];
-		const factory: IppPrinterFactory = (url, options) => {
+		const factory: IppPrinterFactory = (_url, options) => {
 			capturedOptions.push(options);
 			return {
 				execute: (_op, _msg, cb) =>
 					cb(null, {
 						statusCode: "successful-ok",
-						"printer-attributes-tag": {} as unknown as Array<Record<string, unknown>>,
+						"printer-attributes-tag": {} as unknown as Array<
+							Record<string, unknown>
+						>,
 					}),
 			};
 		};
@@ -1318,7 +1326,7 @@ describe("buildConnectionOptions", () => {
 describe("IppPrinterFactory options plumbing", () => {
 	it("passes IppConnectionOptions to the factory", async () => {
 		const capturedOptions: unknown[] = [];
-		const factory: IppPrinterFactory = (url, options) => {
+		const factory: IppPrinterFactory = (_url, options) => {
 			capturedOptions.push(options);
 			return {
 				execute: (_op, _msg, cb) =>
@@ -1358,7 +1366,7 @@ describe("PrintIpp credential fields", () => {
 	it("skipCertValidation only shows when protocol is https", () => {
 		const cred = new PrintIppCredential();
 		const field = cred.properties.find((p) => p.name === "skipCertValidation");
-		const showCondition = field?.displayOptions?.show?.["protocol"];
+		const showCondition = field?.displayOptions?.show?.protocol;
 		expect(showCondition).toEqual(["https"]);
 	});
 });

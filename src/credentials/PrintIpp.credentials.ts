@@ -21,7 +21,8 @@ export class PrintIpp implements ICredentialType {
 				{ name: "HTTPS (IPPS)", value: "https" },
 			],
 			default: "http",
-			description: "Transport protocol. Use HTTPS for encrypted connections (IPPS).",
+			description:
+				"Transport protocol. Use HTTPS for encrypted connections (IPPS).",
 		},
 		{
 			displayName: "Host",

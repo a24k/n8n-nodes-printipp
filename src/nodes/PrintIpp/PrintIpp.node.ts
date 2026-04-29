@@ -793,7 +793,11 @@ export class PrintIpp implements INodeType {
 						data: buffer,
 					};
 
-					const response = await executeIppJob(printerUrl, connectionOptions, message);
+					const response = await executeIppJob(
+						printerUrl,
+						connectionOptions,
+						message,
+					);
 					const jobAttrs = response["job-attributes-tag"] ?? {};
 
 					returnData.push({
