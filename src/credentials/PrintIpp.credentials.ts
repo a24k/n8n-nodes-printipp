@@ -17,7 +17,7 @@ export class PrintIpp implements ICredentialType {
 			name: "protocol",
 			type: "options",
 			options: [
-				{ name: "HTTP", value: "http" },
+				{ name: "HTTP (IPP)", value: "http" },
 				{ name: "HTTPS (IPPS)", value: "https" },
 			],
 			default: "http",
