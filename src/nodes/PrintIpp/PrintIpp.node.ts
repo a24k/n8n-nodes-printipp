@@ -566,14 +566,33 @@ export class PrintIpp implements INodeType {
 					this: ICredentialTestFunctions,
 					credential: ICredentialsDecrypted,
 				): Promise<INodeCredentialTestResult> {
-					const { host, port, username, connectionType } = credential.data as {
+					const {
+						host,
+						port,
+						username,
+						connectionType,
+						protocol,
+						password,
+						skipCertValidation,
+					} = credential.data as {
 						host: string;
 						port: number;
 						username: string;
 						connectionType: string;
+						protocol: string;
+						password: string;
+						skipCertValidation: boolean;
 					};
 					if (connectionType === "cups") {
-						return testCupsConnection(host, port, username);
+						return testCupsConnection(
+							host,
+							port,
+							username,
+							printerFactory,
+							protocol ?? "http",
+							password ?? "",
+							skipCertValidation ?? false,
+						);
 					}
 					return {
 						status: "Error",
@@ -587,11 +606,22 @@ export class PrintIpp implements INodeType {
 					filter?: string,
 				): Promise<INodeListSearchResult> {
 					const credentials = await this.getCredentials("printIpp");
-					const { host, port, username, connectionType } = credentials as {
+					const {
+						host,
+						port,
+						username,
+						connectionType,
+						protocol,
+						password,
+						skipCertValidation,
+					} = credentials as {
 						host: string;
 						port: number;
 						username: string;
 						connectionType: string;
+						protocol: string;
+						password: string;
+						skipCertValidation: boolean;
 					};
 
 					if (connectionType !== "cups") {
@@ -603,6 +633,9 @@ export class PrintIpp implements INodeType {
 						port,
 						username,
 						printerFactory,
+						protocol ?? "http",
+						password ?? "",
+						skipCertValidation ?? false,
 					);
 					const results = printers
 						.filter(
@@ -665,10 +698,10 @@ export class PrintIpp implements INodeType {
 
 		const executeIppJob = (
 			printerUrl: string,
+			options: IppConnectionOptions,
 			message: object,
 		): Promise<IppResponse> => {
-			// Replaced with buildConnectionOptions(skipCertValidation) in Task 3–5
-			const printer = printerFactory(printerUrl, { rejectUnauthorized: true });
+			const printer = printerFactory(printerUrl, options);
 			return new Promise((resolve, reject) => {
 				printer.execute("Print-Job", message, (err, res) => {
 					if (err) reject(err);
@@ -687,6 +720,10 @@ export class PrintIpp implements INodeType {
 			const host = credentials.host as string;
 			const port = credentials.port as number;
 			const username = credentials.username as string;
+			const protocol = (credentials.protocol as string | undefined) ?? "http";
+			const password = (credentials.password as string | undefined) ?? "";
+			const skipCertValidation =
+				(credentials.skipCertValidation as boolean | undefined) ?? false;
 
 			for (let i = 0; i < items.length; i++) {
 				try {
@@ -728,7 +765,15 @@ export class PrintIpp implements INodeType {
 						binaryProperty,
 					);
 
-					const printerUrl = `http://${host}:${port}/printers/${printerName}`;
+					const printerUrl = buildIppUrl(
+						protocol,
+						host,
+						port,
+						`/printers/${printerName}`,
+						username,
+						password,
+					);
+					const connectionOptions = buildConnectionOptions(skipCertValidation);
 					const message = {
 						"operation-attributes-tag": {
 							"requesting-user-name": username,
@@ -748,7 +793,7 @@ export class PrintIpp implements INodeType {
 						data: buffer,
 					};
 
-					const response = await executeIppJob(printerUrl, message);
+					const response = await executeIppJob(printerUrl, connectionOptions, message);
 					const jobAttrs = response["job-attributes-tag"] ?? {};
 
 					returnData.push({

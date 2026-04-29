@@ -434,6 +434,34 @@ describe("PrintIpp execute — successful print job", () => {
 		expect(requestedProps).toEqual(["myPdf"]);
 	});
 
+	it("builds https URL with Basic Auth when credentials specify them", async () => {
+		const capturedUrls: string[] = [];
+		const factory = makeIppFactory((url) => {
+			capturedUrls.push(url);
+			return {
+				statusCode: "successful-ok",
+				"job-attributes-tag": { "job-id": 1, "job-state": "pending" },
+			};
+		});
+
+		const ctx = createMockExecuteFunctions({
+			getCredentials: async () => ({
+				host: "myprinter",
+				port: 9631,
+				username: "admin",
+				protocol: "https",
+				password: "s3cr3t",
+				skipCertValidation: false,
+			}),
+		});
+		const node = new PrintIpp(factory);
+		await node.execute.call(ctx);
+
+		expect(capturedUrls[0]).toBe(
+			"https://admin:s3cr3t@myprinter:9631/printers/TestPrinter",
+		);
+	});
+
 	it("processes multiple items independently", async () => {
 		const capturedUrls: string[] = [];
 		const factory = makeIppFactory((url) => {
