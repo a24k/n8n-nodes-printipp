@@ -83,6 +83,7 @@ function createMockExecuteFunctions(
 			if (paramName === "sides") return "one-sided";
 			if (paramName === "media") return "iso_a4_210x297mm";
 			if (paramName === "colorMode") return "color";
+			if (paramName === "documentFormat") return "application/pdf";
 			if (paramName === "advancedOptions") return fallback ?? {};
 			return fallback ?? "";
 		},
@@ -197,7 +198,7 @@ describe("PrintIpp node description", () => {
 		expect(modes.some((m) => m.name === "id")).toBe(true);
 	});
 
-	it("advancedOptions contains jobName and documentFormat", () => {
+	it("advancedOptions contains jobName only", () => {
 		const node = new PrintIpp();
 		const prop = node.description.properties.find(
 			(p) => p.name === "advancedOptions",
@@ -206,7 +207,19 @@ describe("PrintIpp node description", () => {
 			prop?.options as Array<{ name: string }> | undefined
 		)?.map((o) => o.name);
 		expect(optNames).toContain("jobName");
-		expect(optNames).toContain("documentFormat");
+		expect(optNames).not.toContain("documentFormat");
+	});
+
+	it("documentFormat is a top-level resourceLocator field", () => {
+		const node = new PrintIpp();
+		const prop = node.description.properties.find(
+			(p) => p.name === "documentFormat",
+		);
+		expect(prop).toBeDefined();
+		expect(prop?.type).toBe("resourceLocator");
+		const modes = prop?.modes ?? [];
+		expect(modes.some((m) => m.name === "list")).toBe(true);
+		expect(modes.some((m) => m.name === "id")).toBe(true);
 	});
 });
 
@@ -385,7 +398,7 @@ describe("PrintIpp execute — successful print job", () => {
 		expect(msg.data).toEqual(pdfBytes);
 	});
 
-	it("uses custom jobName and documentFormat from advancedOptions", async () => {
+	it("uses custom jobName from advancedOptions and documentFormat from top-level field", async () => {
 		const capturedMessages: object[] = [];
 		const factory = makeIppFactory((_url, _op, message) => {
 			capturedMessages.push(message);
@@ -402,8 +415,8 @@ describe("PrintIpp execute — successful print job", () => {
 				if (param === "copies") return 1;
 				if (param === "sides") return "one-sided";
 				if (param === "media") return "iso_a4_210x297mm";
-				if (param === "advancedOptions")
-					return { jobName: "My Report", documentFormat: "image/pwg-raster" };
+				if (param === "documentFormat") return "image/pwg-raster";
+				if (param === "advancedOptions") return { jobName: "My Report" };
 				return fallback ?? "";
 			},
 		});
@@ -1154,6 +1167,7 @@ describe("fetchPrinterAttributes", () => {
 			sidesSupported: ["one-sided", "two-sided-long-edge"],
 			mediaSupported: ["iso_a4_210x297mm", "na_letter_8.5x11in"],
 			colorModesSupported: ["color", "monochrome"],
+			documentFormatsSupported: [],
 		});
 	});
 

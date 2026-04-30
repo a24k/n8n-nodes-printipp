@@ -127,6 +127,7 @@ export interface PrinterAttributes {
 	sidesSupported: string[];
 	mediaSupported: string[];
 	colorModesSupported: string[];
+	documentFormatsSupported: string[];
 }
 
 function toStringArray(val: unknown): string[] {
@@ -167,6 +168,7 @@ export async function fetchPrinterAttributes(
 							"sides-supported",
 							"media-supported",
 							"print-color-mode-supported",
+							"document-format-supported",
 						],
 					},
 				},
@@ -187,6 +189,9 @@ export async function fetchPrinterAttributes(
 			sidesSupported: toStringArray(attrs["sides-supported"]),
 			mediaSupported: toStringArray(attrs["media-supported"]),
 			colorModesSupported: toStringArray(attrs["print-color-mode-supported"]),
+			documentFormatsSupported: toStringArray(
+				attrs["document-format-supported"],
+			),
 		};
 	} catch {
 		return null;
@@ -419,6 +424,24 @@ const COLOR_MODE_LABELS: Record<string, string> = {
 	"auto-monochrome": "Auto (Monochrome)",
 	"process-monochrome": "Process Monochrome",
 	"bi-level": "Bi-Level",
+};
+
+const DOCUMENT_FORMAT_DEFAULTS = [
+	{ name: "PDF (IPP General)", value: "application/pdf" },
+	{ name: "PWG Raster (IPP General)", value: "image/pwg-raster" },
+	{ name: "Apple Raster / URF (IPP General)", value: "image/urf" },
+	{ name: "Auto-detect (IPP General)", value: "application/octet-stream" },
+];
+
+const DOCUMENT_FORMAT_LABELS: Record<string, string> = {
+	"application/pdf": "PDF",
+	"image/pwg-raster": "PWG Raster",
+	"image/urf": "Apple Raster / URF",
+	"application/octet-stream": "Auto-detect",
+	"application/postscript": "PostScript",
+	"text/plain": "Plain Text",
+	"image/jpeg": "JPEG",
+	"image/png": "PNG",
 };
 
 async function listPrinterAttribute(
@@ -669,6 +692,37 @@ const nodeDescription: INodeTypeDescription = {
 			],
 		},
 		{
+			displayName: "Document Format",
+			name: "documentFormat",
+			type: "resourceLocator",
+			required: false,
+			default: {
+				mode: "list",
+				value: "application/pdf",
+				cachedResultName: "PDF (IPP General)",
+			},
+			description:
+				"IPP document-format MIME type. Select from printer-supported formats or enter a MIME type manually.",
+			modes: [
+				{
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getDocumentFormatOptions",
+						searchable: true,
+						searchFilterRequired: false,
+					},
+				},
+				{
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "application/pdf",
+				},
+			],
+		},
+		{
 			displayName: "Advanced Options",
 			name: "advancedOptions",
 			type: "collection",
@@ -681,13 +735,6 @@ const nodeDescription: INodeTypeDescription = {
 					type: "string",
 					default: "n8n print job",
 					description: "Value sent as job-name in the IPP request",
-				},
-				{
-					displayName: "Document Format",
-					name: "documentFormat",
-					type: "string",
-					default: "application/pdf",
-					description: "IPP document-format MIME type",
 				},
 			],
 		},
@@ -850,6 +897,20 @@ export class PrintIpp implements INodeType {
 						printerFactory,
 					);
 				},
+
+				async getDocumentFormatOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					return listPrinterAttribute(
+						this,
+						"documentFormatsSupported",
+						DOCUMENT_FORMAT_DEFAULTS,
+						(v) => DOCUMENT_FORMAT_LABELS[v] ?? v,
+						filter,
+						printerFactory,
+					);
+				},
 			},
 		};
 
@@ -918,12 +979,13 @@ export class PrintIpp implements INodeType {
 						{},
 					) as {
 						jobName?: string;
-						documentFormat?: string;
 					};
 
 					const jobName = advancedOptions.jobName ?? "n8n print job";
 					const documentFormat =
-						advancedOptions.documentFormat ?? "application/pdf";
+						(this.getNodeParameter("documentFormat", i, undefined, {
+							extractValue: true,
+						}) as string | undefined) ?? "application/pdf";
 
 					const buffer = await this.helpers.getBinaryDataBuffer(
 						i,
