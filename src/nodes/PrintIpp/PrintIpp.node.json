@@ -1,13 +1,13 @@
 {
-	"node": "n8n-nodes-printipp.printIpp",
-	"nodeVersion": "1.0",
-	"codexVersion": "1.0",
-	"categories": ["Miscellaneous"],
-	"resources": {
-		"primaryDocumentation": [
-			{
-				"url": "https://github.com/a24k/n8n-nodes-printipp"
-			}
-		]
-	}
+  "node": "n8n-nodes-printipp.printIpp",
+  "nodeVersion": "1.0",
+  "codexVersion": "1.0",
+  "categories": ["Miscellaneous"],
+  "resources": {
+    "primaryDocumentation": [
+      {
+        "url": "https://github.com/a24k/n8n-nodes-printipp"
+      }
+    ]
+  }
 }

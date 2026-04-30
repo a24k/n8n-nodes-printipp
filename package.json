@@ -1,49 +1,49 @@
 {
-	"name": "@a24k/n8n-nodes-printipp",
-	"version": "0.5.0",
-	"description": "n8n community node for IPP printing — send print jobs directly to CUPS/IPP printers without system-level lp/lpr dependencies",
-	"keywords": [
-		"n8n-community-node-package"
-	],
-	"license": "MIT",
-	"homepage": "https://github.com/a24k/n8n-nodes-printipp",
-	"author": {
-		"name": "a24k"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/a24k/n8n-nodes-printipp.git"
-	},
-	"scripts": {
-		"build": "tsc --noEmit && bun build.mjs",
-		"lint": "biome check src tests",
-		"lint:fix": "biome check --write src tests",
-		"prepublishOnly": "bun run lint && bun run build",
-		"publish:npm": "npm publish --access public",
-		"test": "bun test"
-	},
-	"files": [
-		"dist"
-	],
-	"n8n": {
-		"n8nNodesApiVersion": 1,
-		"nodes": [
-			"dist/nodes/PrintIpp/PrintIpp.node.js"
-		],
-		"credentials": [
-			"dist/credentials/PrintIpp.credentials.js"
-		]
-	},
-	"dependencies": {
-		"ipp": "^2.0.1"
-	},
-	"peerDependencies": {
-		"n8n-workflow": "*"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.4.8",
-		"@types/node": "^24.0.0",
-		"n8n-workflow": "^2.13.1",
-		"typescript": "^6.0.3"
-	}
+  "name": "@a24k/n8n-nodes-printipp",
+  "version": "0.5.1",
+  "description": "n8n community node for IPP printing — send print jobs directly to CUPS/IPP printers without system-level lp/lpr dependencies",
+  "keywords": [
+    "n8n-community-node-package"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/a24k/n8n-nodes-printipp",
+  "author": {
+    "name": "a24k"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/a24k/n8n-nodes-printipp.git"
+  },
+  "scripts": {
+    "build": "tsc --noEmit && bun build.mjs",
+    "lint": "biome check src tests",
+    "lint:fix": "biome check --write src tests",
+    "prepublishOnly": "bun run lint && bun run build",
+    "publish:npm": "npm publish --access public",
+    "test": "bun test"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/nodes/PrintIpp/PrintIpp.node.js"
+    ],
+    "credentials": [
+      "dist/credentials/PrintIpp.credentials.js"
+    ]
+  },
+  "dependencies": {
+    "ipp": "^2.0.1"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
+    "@types/node": "^24.0.0",
+    "n8n-workflow": "^2.13.1",
+    "typescript": "^6.0.3"
+  }
 }
