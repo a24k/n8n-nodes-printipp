@@ -1,3 +1,4 @@
+import { parse as parseUrl } from "node:url";
 import {
 	Printer as IppPrinter,
 	attributes as ippAttributes,
@@ -61,8 +62,19 @@ export type IppPrinterFactory = (
 	options: IppConnectionOptions,
 ) => IppPrinterInstance;
 
-const defaultPrinterFactory: IppPrinterFactory = (url, options) =>
-	IppPrinter(url, options) as unknown as IppPrinterInstance;
+// The ipp package's Printer constructor ignores rejectUnauthorized from opts,
+// storing only the parsed URL in this.url and passing it verbatim to https.request().
+// By merging rejectUnauthorized into the parsed URL object here, Node.js's
+// https.request() receives the flag and honours it for TLS cert validation.
+const defaultPrinterFactory: IppPrinterFactory = (url, options) => {
+	const parsed = Object.assign(parseUrl(url), {
+		rejectUnauthorized: options.rejectUnauthorized,
+	});
+	return IppPrinter(
+		parsed as unknown as string,
+		options,
+	) as unknown as IppPrinterInstance;
+};
 
 export function buildIppUrl(
 	protocol: string,
