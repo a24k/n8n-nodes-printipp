@@ -90,7 +90,7 @@ A single **Print Job** operation: sends a binary document to an IPP printer.
 
 ### Parameters
 
-UI order: Printer Name → Binary Property → Copies → Sides → Media → Advanced Options.
+UI order: Printer Name → Binary Property → Copies → Sides → Media → Color Mode → Document Format → Advanced Options.
 
 #### Top-level
 
@@ -103,6 +103,7 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 | Sides | `resourceLocator` | — | One-Sided (IPP General) | Duplex setting. Select from printer-supported values (loaded via `Get-Printer-Attributes`) or enter manually. Shows IPP General defaults when no printer selected. |
 | Media | `resourceLocator` | — | A4 (IPP General) | IPP media keyword. Select from printer-supported sizes or enter manually. Shows IPP General defaults when no printer selected. |
 | Color Mode | `resourceLocator` | — | Color (IPP General) | Color printing mode. Select from printer-supported modes or enter an IPP `print-color-mode` keyword manually. |
+| Document Format | `resourceLocator` | — | PDF (IPP General) | IPP `document-format` MIME type. Select from printer-supported formats (loaded via `Get-Printer-Attributes`) or enter a MIME type manually. |
 
 **Sides options (IPP General defaults):**
 
@@ -123,7 +124,7 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 
 ### IPP General Defaults (shown when no printer selected or Get-Printer-Attributes fails)
 
-All three dynamic fields fall back silently to these standard IPP/PWG values. Items are labeled `(IPP General)` in the dropdown.
+All four dynamic fields fall back silently to these standard IPP/PWG values. Items are labeled `(IPP General)` in the dropdown.
 
 **Sides**
 
@@ -146,7 +147,7 @@ All three dynamic fields fall back silently to these standard IPP/PWG values. It
 
 When printer-specific values are fetched via `Get-Printer-Attributes`, known IPP/PWG keywords are mapped to human-readable labels. Unknown keywords fall back to the raw value. Custom sizes (`custom_*` keys) are rendered as `Custom (<dimensions>)`.
 
-Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, and `MEDIA_LABELS` maps plus a `labelMedia(v)` function (handles both the static map and the `custom_*` pattern). The `listPrinterAttribute` helper accepts a `labeler: (v: string) => string` function so each field can apply its own transform.
+Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, `MEDIA_LABELS`, and `DOCUMENT_FORMAT_LABELS` maps plus a `labelMedia(v)` function (handles both the static map and the `custom_*` pattern). The `listPrinterAttribute` helper accepts a `labeler: (v: string) => string` function so each field can apply its own transform.
 
 **Color Mode**
 
@@ -156,12 +157,29 @@ Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, and `MEDIA_LABELS` maps plu
 | Monochrome (IPP General) | `monochrome` |
 | Auto (IPP General) | `auto` |
 
+**Document Format**
+
+| Display | IPP value |
+|---------|-----------|
+| PDF (IPP General) | `application/pdf` |
+| PWG Raster (IPP General) | `image/pwg-raster` |
+| Apple Raster / URF (IPP General) | `image/urf` |
+| Auto-detect (IPP General) | `application/octet-stream` |
+
+> **Note on format support:** Direct IPP printers typically only accept formats they can process natively (e.g. `image/pwg-raster`, `image/urf`). CUPS servers expose many formats because CUPS applies filter chains for format conversion. When printing directly to an IPP printer, select a format the printer actually supports or use a CUPS server for conversion.
+
+#### Printer Attribute Discovery — Document Format
+
+`Document Format` loads printer-supported MIME types via `Get-Printer-Attributes`, requesting `document-format-supported`. Follows the same pattern as `Sides`, `Media`, and `Color Mode`.
+
+- **CUPS mode:** Request is sent to `{protocol}://{host}:{port}/printers/{printerName}` when a printer is selected. Falls back to IPP General defaults when no printer is selected or fetch fails.
+- **Direct IPP mode:** Request is sent to `{protocol}://{host}:{port}{printerPath}` as soon as the credential is configured.
+
 #### Advanced Options (collection)
 
 | Option | Name | Type | Default | Description |
 |--------|------|------|---------|-------------|
 | Job Name | `jobName` | `string` | `n8n print job` | Value sent as `job-name` in the IPP request |
-| Document Format | `documentFormat` | `string` | `application/pdf` | IPP `document-format` MIME type |
 
 ---
 

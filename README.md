@@ -83,13 +83,15 @@ Sends a binary document to an IPP printer queue.
 | Sides | — | One-Sided | Duplex setting. Select from printer-supported values (loaded automatically) or type a value manually. |
 | Media | — | A4 | IPP media keyword. Select from printer-supported sizes (loaded automatically) or type a keyword manually. |
 | Color Mode | — | Color | Color mode. Select from printer-supported values (loaded automatically) or type a value manually (e.g. `color`, `monochrome`). |
+| Document Format | — | PDF | IPP `document-format` MIME type. Select from printer-supported formats (loaded automatically) or type a MIME type manually. |
+
+> **Direct IPP note:** Network printers typically only accept formats they can process natively (usually `image/pwg-raster` or `image/urf`). CUPS servers accept many more formats because CUPS handles format conversion internally. When printing directly to an IPP printer, choose a format it actually supports.
 
 **Advanced Options:**
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | Job Name | `n8n print job` | Value sent as `job-name` in the IPP request |
-| Document Format | `application/pdf` | IPP `document-format` MIME type |
 
 ### Example workflow
 
