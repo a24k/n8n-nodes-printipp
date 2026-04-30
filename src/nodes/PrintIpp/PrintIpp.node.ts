@@ -1,3 +1,4 @@
+import { parse as parseUrl } from "node:url";
 import {
 	Printer as IppPrinter,
 	attributes as ippAttributes,
@@ -61,8 +62,19 @@ export type IppPrinterFactory = (
 	options: IppConnectionOptions,
 ) => IppPrinterInstance;
 
-const defaultPrinterFactory: IppPrinterFactory = (url, options) =>
-	IppPrinter(url, options) as unknown as IppPrinterInstance;
+// The ipp package's Printer constructor ignores rejectUnauthorized from opts,
+// storing only the parsed URL in this.url and passing it verbatim to https.request().
+// By merging rejectUnauthorized into the parsed URL object here, Node.js's
+// https.request() receives the flag and honours it for TLS cert validation.
+const defaultPrinterFactory: IppPrinterFactory = (url, options) => {
+	const parsed = Object.assign(parseUrl(url), {
+		rejectUnauthorized: options.rejectUnauthorized,
+	});
+	return IppPrinter(
+		parsed as unknown as string,
+		options,
+	) as unknown as IppPrinterInstance;
+};
 
 export function buildIppUrl(
 	protocol: string,
@@ -86,6 +98,26 @@ export function buildConnectionOptions(
 	return { rejectUnauthorized: !skipCertValidation };
 }
 
+export function resolvePrinterPath(
+	connectionType: string,
+	printerName: string | undefined,
+	printerPath: string | undefined,
+): string {
+	if (connectionType === "ipp") {
+		const p = printerPath || "/ipp/print";
+		return p.startsWith("/") ? p : `/${p}`;
+	}
+	if (connectionType === "cups") {
+		if (!printerName) {
+			throw new Error(
+				"Printer Name is required when Connection Type is CUPS Server",
+			);
+		}
+		return `/printers/${printerName}`;
+	}
+	throw new Error(`Unsupported connection type: ${connectionType}`);
+}
+
 export interface CupsPrinterEntry {
 	name: string;
 	info?: string;
@@ -95,6 +127,7 @@ export interface PrinterAttributes {
 	sidesSupported: string[];
 	mediaSupported: string[];
 	colorModesSupported: string[];
+	documentFormatsSupported: string[];
 }
 
 function toStringArray(val: unknown): string[] {
@@ -107,7 +140,7 @@ function toStringArray(val: unknown): string[] {
 export async function fetchPrinterAttributes(
 	host: string,
 	port: number,
-	printerName: string,
+	path: string,
 	username: string,
 	printerFactory: IppPrinterFactory = defaultPrinterFactory,
 	protocol = "http",
@@ -119,7 +152,7 @@ export async function fetchPrinterAttributes(
 			protocol,
 			host,
 			port,
-			`/printers/${printerName}`,
+			path,
 			username,
 			password,
 		);
@@ -135,6 +168,7 @@ export async function fetchPrinterAttributes(
 							"sides-supported",
 							"media-supported",
 							"print-color-mode-supported",
+							"document-format-supported",
 						],
 					},
 				},
@@ -155,6 +189,9 @@ export async function fetchPrinterAttributes(
 			sidesSupported: toStringArray(attrs["sides-supported"]),
 			mediaSupported: toStringArray(attrs["media-supported"]),
 			colorModesSupported: toStringArray(attrs["print-color-mode-supported"]),
+			documentFormatsSupported: toStringArray(
+				attrs["document-format-supported"],
+			),
 		};
 	} catch {
 		return null;
@@ -246,6 +283,84 @@ export async function testCupsConnection(
 	}
 }
 
+export async function testIppConnection(
+	host: string,
+	port: number,
+	path: string,
+	username: string,
+	printerFactory: IppPrinterFactory = defaultPrinterFactory,
+	protocol = "http",
+	password = "",
+	skipCertValidation = false,
+): Promise<INodeCredentialTestResult> {
+	try {
+		const printerUrl = buildIppUrl(
+			protocol,
+			host,
+			port,
+			path,
+			username,
+			password,
+		);
+		const connectionOptions = buildConnectionOptions(skipCertValidation);
+		const printer = printerFactory(printerUrl, connectionOptions);
+		const response = await new Promise<IppResponse>((resolve, reject) => {
+			printer.execute(
+				"Get-Printer-Attributes",
+				{
+					"operation-attributes-tag": {
+						"requesting-user-name": username,
+						"requested-attributes": [
+							"printer-state",
+							"printer-state-reasons",
+							"printer-name",
+						],
+					},
+				},
+				(err, res) => {
+					if (err) reject(err);
+					else resolve(res);
+				},
+			);
+		});
+
+		const rawAttrs = response["printer-attributes-tag"];
+		if (!rawAttrs) {
+			return {
+				status: "Error",
+				message: "Connection failed: no printer attributes returned",
+			};
+		}
+		const attrs: Record<string, unknown> = Array.isArray(rawAttrs)
+			? (rawAttrs[0] ?? {})
+			: (rawAttrs as Record<string, unknown>);
+
+		const printerState = attrs["printer-state"] as string | undefined;
+		if (printerState === "stopped") {
+			return {
+				status: "OK",
+				message: "Connected, but printer state is 'stopped'",
+			};
+		}
+		return {
+			status: "OK",
+			message: `Connected successfully (printer-state: ${printerState ?? "unknown"})`,
+		};
+	} catch (error: unknown) {
+		const msg = error instanceof Error ? error.message : String(error);
+		if (/certificate|CERT/i.test(msg)) {
+			return {
+				status: "Error",
+				message: "Connection failed: certificate validation error",
+			};
+		}
+		return {
+			status: "Error",
+			message: "Connection failed",
+		};
+	}
+}
+
 const SIDES_DEFAULTS = [
 	{ name: "One-Sided (IPP General)", value: "one-sided" },
 	{ name: "Two-Sided Long Edge (IPP General)", value: "two-sided-long-edge" },
@@ -311,6 +426,62 @@ const COLOR_MODE_LABELS: Record<string, string> = {
 	"bi-level": "Bi-Level",
 };
 
+const DOCUMENT_FORMAT_LABELS: Record<string, string> = {
+	"application/pdf": "PDF (application/pdf)",
+	"image/pwg-raster": "PWG Raster (image/pwg-raster)",
+	"image/urf": "Apple Raster / URF (image/urf)",
+	"application/octet-stream": "Auto-detect (application/octet-stream)",
+	"application/postscript": "PostScript (application/postscript)",
+	"text/plain": "Plain Text (text/plain)",
+	"image/jpeg": "JPEG (image/jpeg)",
+	"image/png": "PNG (image/png)",
+	"image/gif": "GIF (image/gif)",
+	"image/tiff": "TIFF (image/tiff)",
+	"application/vnd.adobe-reader-postscript":
+		"Adobe Reader PostScript (application/vnd.adobe-reader-postscript)",
+	"application/vnd.cups-pdf": "CUPS PDF (application/vnd.cups-pdf)",
+	"application/vnd.cups-pdf-banner":
+		"CUPS PDF Banner (application/vnd.cups-pdf-banner)",
+	"application/vnd.cups-postscript":
+		"CUPS PostScript (application/vnd.cups-postscript)",
+	"application/vnd.cups-raster": "CUPS Raster (application/vnd.cups-raster)",
+	"application/vnd.cups-raw": "CUPS Raw (application/vnd.cups-raw)",
+	"application/vnd.epson.escpr": "Epson ESC/PR (application/vnd.epson.escpr)",
+	"application/x-cshell": "C Shell Script (application/x-cshell)",
+	"application/x-csource": "C Source (application/x-csource)",
+	"application/x-perl": "Perl Script (application/x-perl)",
+	"application/x-shell": "Shell Script (application/x-shell)",
+	"image/x-bitmap": "BMP (image/x-bitmap)",
+	"image/x-photocd": "Photo CD (image/x-photocd)",
+	"image/x-portable-anymap": "PNM (image/x-portable-anymap)",
+	"image/x-portable-bitmap": "PBM (image/x-portable-bitmap)",
+	"image/x-portable-graymap": "PGM (image/x-portable-graymap)",
+	"image/x-portable-pixmap": "PPM (image/x-portable-pixmap)",
+	"image/x-sgi-rgb": "SGI RGB (image/x-sgi-rgb)",
+	"image/x-sun-raster": "Sun Raster (image/x-sun-raster)",
+	"image/x-xbitmap": "X Bitmap (image/x-xbitmap)",
+	"image/x-xpixmap": "X Pixmap (image/x-xpixmap)",
+	"image/x-xwindowdump": "X Window Dump (image/x-xwindowdump)",
+	"text/css": "CSS (text/css)",
+	"text/html": "HTML (text/html)",
+};
+
+const DOCUMENT_FORMAT_DEFAULTS = [
+	{ name: "PDF (application/pdf) (IPP General)", value: "application/pdf" },
+	{
+		name: "PWG Raster (image/pwg-raster) (IPP General)",
+		value: "image/pwg-raster",
+	},
+	{
+		name: "Apple Raster / URF (image/urf) (IPP General)",
+		value: "image/urf",
+	},
+	{
+		name: "Auto-detect (application/octet-stream) (IPP General)",
+		value: "application/octet-stream",
+	},
+];
+
 async function listPrinterAttribute(
 	ctx: ILoadOptionsFunctions,
 	attrKey: keyof PrinterAttributes,
@@ -320,25 +491,35 @@ async function listPrinterAttribute(
 	printerFactory: IppPrinterFactory,
 ): Promise<INodeListSearchResult> {
 	const credentials = await ctx.getCredentials("printIpp");
-	const { host, port, username, protocol, password, skipCertValidation } =
-		credentials as {
-			host: string;
-			port: number;
-			username: string;
-			protocol: string;
-			password: string;
-			skipCertValidation: boolean;
-		};
-	const printerName = ctx.getCurrentNodeParameter("printerName", {
-		extractValue: true,
-	}) as string;
+	const {
+		host,
+		port,
+		username,
+		protocol,
+		password,
+		skipCertValidation,
+		connectionType,
+		printerPath,
+	} = credentials as {
+		host: string;
+		port: number;
+		username: string;
+		protocol: string;
+		password: string;
+		skipCertValidation: boolean;
+		connectionType: string | undefined;
+		printerPath: string | undefined;
+	};
 
+	const effectiveConnectionType = connectionType ?? "cups";
 	let items = defaults;
-	if (printerName) {
+
+	if (effectiveConnectionType === "ipp") {
+		const path = resolvePrinterPath("ipp", undefined, printerPath);
 		const attrs = await fetchPrinterAttributes(
 			host,
 			port,
-			printerName,
+			path,
 			username,
 			printerFactory,
 			protocol ?? "http",
@@ -348,6 +529,28 @@ async function listPrinterAttribute(
 		const supported = attrs?.[attrKey] ?? [];
 		if (supported.length > 0) {
 			items = supported.map((v) => ({ name: labeler(v), value: v }));
+		}
+	} else {
+		const printerName = ctx.getCurrentNodeParameter("printerName", {
+			extractValue: true,
+		}) as string;
+
+		if (printerName) {
+			const path = resolvePrinterPath("cups", printerName, undefined);
+			const attrs = await fetchPrinterAttributes(
+				host,
+				port,
+				path,
+				username,
+				printerFactory,
+				protocol ?? "http",
+				password ?? "",
+				skipCertValidation ?? false,
+			);
+			const supported = attrs?.[attrKey] ?? [];
+			if (supported.length > 0) {
+				items = supported.map((v) => ({ name: labeler(v), value: v }));
+			}
 		}
 	}
 
@@ -387,9 +590,10 @@ const nodeDescription: INodeTypeDescription = {
 			displayName: "Printer Name",
 			name: "printerName",
 			type: "resourceLocator",
-			required: true,
+			required: false,
 			default: { mode: "id", value: "" },
-			description: "Printer queue name as registered on the CUPS server",
+			description:
+				"Printer queue name as registered on the CUPS server. Used only when Connection Type is CUPS Server; ignored for Direct IPP.",
 			modes: [
 				{
 					displayName: "From List",
@@ -526,6 +730,37 @@ const nodeDescription: INodeTypeDescription = {
 			],
 		},
 		{
+			displayName: "Document Format",
+			name: "documentFormat",
+			type: "resourceLocator",
+			required: false,
+			default: {
+				mode: "list",
+				value: "application/pdf",
+				cachedResultName: "PDF (application/pdf) (IPP General)",
+			},
+			description:
+				"IPP document-format MIME type. Select from printer-supported formats or enter a MIME type manually.",
+			modes: [
+				{
+					displayName: "From List",
+					name: "list",
+					type: "list",
+					typeOptions: {
+						searchListMethod: "getDocumentFormatOptions",
+						searchable: true,
+						searchFilterRequired: false,
+					},
+				},
+				{
+					displayName: "By Value",
+					name: "id",
+					type: "string",
+					placeholder: "application/pdf",
+				},
+			],
+		},
+		{
 			displayName: "Advanced Options",
 			name: "advancedOptions",
 			type: "collection",
@@ -538,13 +773,6 @@ const nodeDescription: INodeTypeDescription = {
 					type: "string",
 					default: "n8n print job",
 					description: "Value sent as job-name in the IPP request",
-				},
-				{
-					displayName: "Document Format",
-					name: "documentFormat",
-					type: "string",
-					default: "application/pdf",
-					description: "IPP document-format MIME type",
 				},
 			],
 		},
@@ -574,6 +802,7 @@ export class PrintIpp implements INodeType {
 						protocol,
 						password,
 						skipCertValidation,
+						printerPath,
 					} = credential.data as {
 						host: string;
 						port: number;
@@ -582,11 +811,24 @@ export class PrintIpp implements INodeType {
 						protocol: string;
 						password: string;
 						skipCertValidation: boolean;
+						printerPath: string | undefined;
 					};
 					if (connectionType === "cups") {
 						return testCupsConnection(
 							host,
 							port,
+							username,
+							printerFactory,
+							protocol ?? "http",
+							password ?? "",
+							skipCertValidation ?? false,
+						);
+					}
+					if (connectionType === "ipp") {
+						return testIppConnection(
+							host,
+							port,
+							resolvePrinterPath("ipp", undefined, printerPath),
 							username,
 							printerFactory,
 							protocol ?? "http",
@@ -693,6 +935,20 @@ export class PrintIpp implements INodeType {
 						printerFactory,
 					);
 				},
+
+				async getDocumentFormatOptions(
+					this: ILoadOptionsFunctions,
+					filter?: string,
+				): Promise<INodeListSearchResult> {
+					return listPrinterAttribute(
+						this,
+						"documentFormatsSupported",
+						DOCUMENT_FORMAT_DEFAULTS,
+						(v) => DOCUMENT_FORMAT_LABELS[v] ?? v,
+						filter,
+						printerFactory,
+					);
+				},
 			},
 		};
 
@@ -724,6 +980,9 @@ export class PrintIpp implements INodeType {
 			const password = (credentials.password as string | undefined) ?? "";
 			const skipCertValidation =
 				(credentials.skipCertValidation as boolean | undefined) ?? false;
+			const connectionType =
+				(credentials.connectionType as string | undefined) ?? "cups";
+			const printerPath = credentials.printerPath as string | undefined;
 
 			for (let i = 0; i < items.length; i++) {
 				try {
@@ -732,7 +991,12 @@ export class PrintIpp implements INodeType {
 						i,
 						undefined,
 						{ extractValue: true },
-					) as string;
+					) as string | undefined;
+					const path = resolvePrinterPath(
+						connectionType,
+						printerName,
+						printerPath,
+					);
 					const binaryProperty = this.getNodeParameter(
 						"binaryProperty",
 						i,
@@ -753,12 +1017,13 @@ export class PrintIpp implements INodeType {
 						{},
 					) as {
 						jobName?: string;
-						documentFormat?: string;
 					};
 
 					const jobName = advancedOptions.jobName ?? "n8n print job";
 					const documentFormat =
-						advancedOptions.documentFormat ?? "application/pdf";
+						(this.getNodeParameter("documentFormat", i, undefined, {
+							extractValue: true,
+						}) as string | undefined) ?? "application/pdf";
 
 					const buffer = await this.helpers.getBinaryDataBuffer(
 						i,
@@ -769,7 +1034,7 @@ export class PrintIpp implements INodeType {
 						protocol,
 						host,
 						port,
-						`/printers/${printerName}`,
+						path,
 						username,
 						password,
 					);

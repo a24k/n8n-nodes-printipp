@@ -9,8 +9,13 @@ export class PrintIpp implements ICredentialType {
 			displayName: "Connection Type",
 			name: "connectionType",
 			type: "options",
-			options: [{ name: "CUPS Server", value: "cups" }],
+			options: [
+				{ name: "CUPS Server", value: "cups" },
+				{ name: "Direct IPP Printer", value: "ipp" },
+			],
 			default: "cups",
+			description:
+				"Server type. Use CUPS Server for a CUPS print server, or Direct IPP Printer for a network printer (IPP Everywhere, AirPrint, vendor IPP).",
 		},
 		{
 			displayName: "Protocol",
@@ -39,6 +44,16 @@ export class PrintIpp implements ICredentialType {
 			default: 631,
 			placeholder: "631",
 			description: "IPP port (default: 631)",
+		},
+		{
+			displayName: "Printer Path",
+			name: "printerPath",
+			type: "string",
+			default: "/ipp/print",
+			placeholder: "/ipp/print",
+			displayOptions: { show: { connectionType: ["ipp"] } },
+			description:
+				"Path component of the printer's IPP endpoint URL (e.g. /ipp/print, /ipp/printer, /). The full URL is {protocol}://{host}:{port}{printerPath}.",
 		},
 		{
 			displayName: "Username",

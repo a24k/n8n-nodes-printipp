@@ -28,30 +28,41 @@ Defined in `src/credentials/PrintIpp.credentials.ts`. Display name: **PrintIPP E
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| Connection Type | `options` | — | `cups` | Server type. Currently `CUPS Server` only; reserved for future Direct IPP support. |
+| Connection Type | `options` | — | `cups` | Server type: `CUPS Server` or `Direct IPP Printer`. |
 | Protocol | `options` | — | `http` | Transport protocol: `HTTP (IPP)` or `HTTPS (IPPS)`. |
-| Host | `string` | ✅ | — | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
+| Host | `string` | ✅ | — | CUPS server or IPP printer hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
 | Port | `number` | — | `631` | IPP port |
+| Printer Path | `string` | — | `/ipp/print` | Path component of the printer's IPP endpoint (e.g. `/ipp/print`, `/ipp/printer`, `/`). Visible only when Connection Type is Direct IPP Printer. |
 | Username | `string` | — | `n8n` | Value sent as `requesting-user-name` in every IPP request |
 | Password | `string` (secret) | — | `""` | HTTP Basic Authentication password. Leave empty to disable Basic Auth. |
 | Skip Certificate Validation | `boolean` | — | `false` | Accept self-signed or untrusted TLS certificates. Visible only when Protocol is HTTPS. |
 
-The printer URI is constructed at runtime as `{protocol}://{host}:{port}/printers/{printerName}`. When `password` is non-empty, Basic Auth credentials are embedded: `{protocol}://{username}:{password}@{host}:{port}/printers/{printerName}`.
+The printer URI is constructed at runtime by `resolvePrinterPath(connectionType, printerName, printerPath)` and `buildIppUrl(protocol, host, port, path, username, password)`:
+- **CUPS mode:** `{protocol}://{host}:{port}/printers/{printerName}`
+- **Direct IPP mode:** `{protocol}://{host}:{port}{printerPath}`
+
+When `password` is non-empty, Basic Auth credentials are embedded in the URL.
 
 ### Test Connection
 
 A "Test connection" button is available in the credential UI.
 
-- **Implementation:** `testedBy: "printIppCredentialTest"` in the node description wires the button to `methods.credentialTest.printIppCredentialTest` on the `PrintIpp` node. The handler dispatches to `testCupsConnection()` based on `connectionType`.
-- **Protocol (CUPS):** Sends a `CUPS-Get-Printers` IPP operation to `{protocol}://{host}:{port}/` (the CUPS root endpoint, no printer name required). `CUPS-Get-Printers` (op code `0x4002`) is a CUPS extension not present in the `ipp` package's standard operations table and is registered at module load time via monkey-patch.
-- **Success:** Connection established and at least 1 printer found. n8n displays `"Connection tested successfully"` (n8n hardcodes this message for all OK results).
-- **Failure (no printers):** `"Connection failed: no printers found"` — CUPS responded but the printer list was empty.
-- **Failure (certificate error):** `"Connection failed: certificate validation error"` — TLS handshake failed (e.g. self-signed cert). Enable **Skip Certificate Validation** to bypass.
-- **Failure (network/IPP error):** `"Connection failed"` (any other network or IPP error).
+- **Implementation:** `testedBy: "printIppCredentialTest"` in the node description wires the button to `methods.credentialTest.printIppCredentialTest` on the `PrintIpp` node. The handler dispatches based on `connectionType`.
+- **CUPS mode:** Sends a `CUPS-Get-Printers` IPP operation to `{protocol}://{host}:{port}/` (the CUPS root endpoint, no printer name required). `CUPS-Get-Printers` (op code `0x4002`) is a CUPS extension not present in the `ipp` package's standard operations table and is registered at module load time via monkey-patch.
+  - Success: at least 1 printer found.
+  - Failure (no printers): `"Connection failed: no printers found"`.
+- **Direct IPP mode:** Sends `Get-Printer-Attributes` to `{protocol}://{host}:{port}{printerPath}` requesting `printer-state`, `printer-state-reasons`, `printer-name`.
+  - Success: `"Connected successfully (printer-state: idle)"`.
+  - Printer state `stopped`: `OK` with `"Connected, but printer state is 'stopped'"`.
+  - No `printer-attributes-tag` in response: `"Connection failed: no printer attributes returned"`.
+- **Both modes:** Failure (certificate error): `"Connection failed: certificate validation error"`. Other errors: `"Connection failed"`.
 
 ### Printer Attribute Discovery
 
-When a printer is selected in the Printer Name field, `Sides`, `Media`, and `Color Mode` load printer-specific supported values via `Get-Printer-Attributes` sent to `{protocol}://{host}:{port}/printers/{printerName}`. Requested attributes: `sides-supported`, `media-supported`, `print-color-mode-supported`.
+`Sides`, `Media`, and `Color Mode` load printer-specific supported values via `Get-Printer-Attributes`. Requested attributes: `sides-supported`, `media-supported`, `print-color-mode-supported`.
+
+- **CUPS mode:** When a printer is selected in the Printer Name field, the request is sent to `{protocol}://{host}:{port}/printers/{printerName}`. Falls back to IPP General defaults when no printer is selected or fetch fails.
+- **Direct IPP mode:** The request is sent to `{protocol}://{host}:{port}{printerPath}` as soon as the credential is configured (no printer name needed). Falls back to IPP General defaults on fetch failure.
 
 On fetch failure (network error, printer offline), each field silently falls back to IPP General defaults — standard IPP/PWG keyword values labeled `(IPP General)` in the dropdown.
 
@@ -69,7 +80,7 @@ The `printerName` field uses `type: "resourceLocator"` with two modes:
 - **From List** (`list` mode): dropdown populated by `getCupsPrinters`, searchable.
 - **By Name** (`id` mode): free-text input with placeholder `MyPrinter`; allows manual entry when the CUPS server is unreachable from the n8n editor or when the queue name is known in advance.
 
-At runtime, `execute` reads the value using `{ extractValue: true }` so both modes resolve to a plain queue name string.
+At runtime, `execute` reads the value using `{ extractValue: true }` so both modes resolve to a plain queue name string. When `connectionType === "ipp"`, the Printer Name field is not required and its value is ignored at runtime.
 
 ---
 
@@ -79,7 +90,7 @@ A single **Print Job** operation: sends a binary document to an IPP printer.
 
 ### Parameters
 
-UI order: Printer Name → Binary Property → Copies → Sides → Media → Advanced Options.
+UI order: Printer Name → Binary Property → Copies → Sides → Media → Color Mode → Document Format → Advanced Options.
 
 #### Top-level
 
@@ -92,6 +103,7 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 | Sides | `resourceLocator` | — | One-Sided (IPP General) | Duplex setting. Select from printer-supported values (loaded via `Get-Printer-Attributes`) or enter manually. Shows IPP General defaults when no printer selected. |
 | Media | `resourceLocator` | — | A4 (IPP General) | IPP media keyword. Select from printer-supported sizes or enter manually. Shows IPP General defaults when no printer selected. |
 | Color Mode | `resourceLocator` | — | Color (IPP General) | Color printing mode. Select from printer-supported modes or enter an IPP `print-color-mode` keyword manually. |
+| Document Format | `resourceLocator` | — | PDF (IPP General) | IPP `document-format` MIME type. Select from printer-supported formats (loaded via `Get-Printer-Attributes`) or enter a MIME type manually. |
 
 **Sides options (IPP General defaults):**
 
@@ -112,7 +124,7 @@ UI order: Printer Name → Binary Property → Copies → Sides → Media → Ad
 
 ### IPP General Defaults (shown when no printer selected or Get-Printer-Attributes fails)
 
-All three dynamic fields fall back silently to these standard IPP/PWG values. Items are labeled `(IPP General)` in the dropdown.
+All four dynamic fields fall back silently to these standard IPP/PWG values. Items are labeled `(IPP General)` in the dropdown.
 
 **Sides**
 
@@ -135,7 +147,7 @@ All three dynamic fields fall back silently to these standard IPP/PWG values. It
 
 When printer-specific values are fetched via `Get-Printer-Attributes`, known IPP/PWG keywords are mapped to human-readable labels. Unknown keywords fall back to the raw value. Custom sizes (`custom_*` keys) are rendered as `Custom (<dimensions>)`.
 
-Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, and `MEDIA_LABELS` maps plus a `labelMedia(v)` function (handles both the static map and the `custom_*` pattern). The `listPrinterAttribute` helper accepts a `labeler: (v: string) => string` function so each field can apply its own transform.
+Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, `MEDIA_LABELS`, and `DOCUMENT_FORMAT_LABELS` maps plus a `labelMedia(v)` function (handles both the static map and the `custom_*` pattern). The `listPrinterAttribute` helper accepts a `labeler: (v: string) => string` function so each field can apply its own transform.
 
 **Color Mode**
 
@@ -145,12 +157,29 @@ Implemented via `SIDES_LABELS`, `COLOR_MODE_LABELS`, and `MEDIA_LABELS` maps plu
 | Monochrome (IPP General) | `monochrome` |
 | Auto (IPP General) | `auto` |
 
+**Document Format**
+
+| Display | IPP value |
+|---------|-----------|
+| PDF (IPP General) | `application/pdf` |
+| PWG Raster (IPP General) | `image/pwg-raster` |
+| Apple Raster / URF (IPP General) | `image/urf` |
+| Auto-detect (IPP General) | `application/octet-stream` |
+
+> **Note on format support:** Direct IPP printers typically only accept formats they can process natively (e.g. `image/pwg-raster`, `image/urf`). CUPS servers expose many formats because CUPS applies filter chains for format conversion. When printing directly to an IPP printer, select a format the printer actually supports or use a CUPS server for conversion.
+
+#### Printer Attribute Discovery — Document Format
+
+`Document Format` loads printer-supported MIME types via `Get-Printer-Attributes`, requesting `document-format-supported`. Follows the same pattern as `Sides`, `Media`, and `Color Mode`.
+
+- **CUPS mode:** Request is sent to `{protocol}://{host}:{port}/printers/{printerName}` when a printer is selected. Falls back to IPP General defaults when no printer is selected or fetch fails.
+- **Direct IPP mode:** Request is sent to `{protocol}://{host}:{port}{printerPath}` as soon as the credential is configured.
+
 #### Advanced Options (collection)
 
 | Option | Name | Type | Default | Description |
 |--------|------|------|---------|-------------|
 | Job Name | `jobName` | `string` | `n8n print job` | Value sent as `job-name` in the IPP request |
-| Document Format | `documentFormat` | `string` | `application/pdf` | IPP `document-format` MIME type |
 
 ---
 
@@ -217,10 +246,12 @@ Fields are taken directly from the IPP `Print-Job` response. `job-state` may be 
 
 ## API / Protocol Details
 
-| Protocol | Transport |
-|----------|-----------|
-| IPP/2.0 | HTTP POST to `{protocol}://{host}:{port}/printers/{printerName}` |
-| IPPS/2.0 | HTTPS POST (TLS) to `https://{host}:{port}/printers/{printerName}` |
+| Mode | Protocol | Transport |
+|------|----------|-----------|
+| CUPS | IPP/2.0 | HTTP POST to `{protocol}://{host}:{port}/printers/{printerName}` |
+| CUPS | IPPS/2.0 | HTTPS POST (TLS) to `https://{host}:{port}/printers/{printerName}` |
+| Direct IPP | IPP/2.0 | HTTP POST to `{protocol}://{host}:{port}{printerPath}` |
+| Direct IPP | IPPS/2.0 | HTTPS POST (TLS) to `https://{host}:{port}{printerPath}` |
 
 The `ipp` package encodes the IPP binary message and handles the HTTP/HTTPS transport internally. TLS options (`rejectUnauthorized`) are passed via the `IppConnectionOptions` interface to the `IppPrinterFactory`.
 
@@ -231,3 +262,5 @@ The `ipp` package encodes the IPP binary message and handles the HTTP/HTTPS tran
 - Cancel-Job operation
 - Multiple document support (multi-page job from separate binary items)
 - Kerberos authentication for CUPS
+- mDNS / Bonjour discovery of Direct IPP printers (users provide host/port manually)
+- Credential-aware `displayOptions` for hiding the Printer Name field in Direct IPP mode (currently the field is always visible but ignored at runtime)
