@@ -32,7 +32,7 @@ Defined in `src/credentials/PrintIpp.credentials.ts`. Display name: **PrintIPP E
 | Protocol | `options` | — | `http` | Transport protocol: `HTTP (IPP)` or `HTTPS (IPPS)`. |
 | Host | `string` | ✅ | — | CUPS server or IPP printer hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
 | Port | `number` | — | `631` | IPP port |
-| Printer Path | `string` | `/ipp/print` | Path component of the printer's IPP endpoint (e.g. `/ipp/print`, `/ipp/printer`, `/`). Visible only when Connection Type is Direct IPP Printer. |
+| Printer Path | `string` | — | `/ipp/print` | Path component of the printer's IPP endpoint (e.g. `/ipp/print`, `/ipp/printer`, `/`). Visible only when Connection Type is Direct IPP Printer. |
 | Username | `string` | — | `n8n` | Value sent as `requesting-user-name` in every IPP request |
 | Password | `string` (secret) | — | `""` | HTTP Basic Authentication password. Leave empty to disable Basic Auth. |
 | Skip Certificate Validation | `boolean` | — | `false` | Accept self-signed or untrusted TLS certificates. Visible only when Protocol is HTTPS. |
