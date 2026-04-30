@@ -1,32 +1,32 @@
 declare module "ipp" {
-	interface PrinterOptions {
-		charset?: string;
-		language?: string;
-		uri?: string;
-		version?: string;
-		rejectUnauthorized?: boolean;
-	}
+  interface PrinterOptions {
+    charset?: string;
+    language?: string;
+    uri?: string;
+    version?: string;
+    rejectUnauthorized?: boolean;
+  }
 
-	type IppCallback = (err: Error | null, res: IppResponse) => void;
+  type IppCallback = (err: Error | null, res: IppResponse) => void;
 
-	interface IppResponse {
-		version?: string;
-		statusCode?: string;
-		id?: number;
-		"operation-attributes-tag"?: Record<string, unknown>;
-		"job-attributes-tag"?: Record<string, unknown>;
-		"printer-attributes-tag"?: Array<Record<string, unknown>>;
-		"unsupported-attributes"?: unknown;
-	}
+  interface IppResponse {
+    version?: string;
+    statusCode?: string;
+    id?: number;
+    "operation-attributes-tag"?: Record<string, unknown>;
+    "job-attributes-tag"?: Record<string, unknown>;
+    "printer-attributes-tag"?: Array<Record<string, unknown>>;
+    "unsupported-attributes"?: unknown;
+  }
 
-	interface PrinterInstance {
-		execute(operation: string, message: object, callback: IppCallback): void;
-	}
+  interface PrinterInstance {
+    execute(operation: string, message: object, callback: IppCallback): void;
+  }
 
-	function Printer(url: string, options?: PrinterOptions): PrinterInstance;
+  function Printer(url: string, options?: PrinterOptions): PrinterInstance;
 
-	const operations: Record<string, number>;
-	const attributes: Record<string, Record<string, unknown>>;
+  const operations: Record<string, number>;
+  const attributes: Record<string, Record<string, unknown>>;
 
-	export { attributes, operations, Printer };
+  export { attributes, operations, Printer };
 }
