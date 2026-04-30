@@ -92,15 +92,20 @@ Fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `connectionType` | `options` | `cups` | Server type. Currently `CUPS Server` only. |
+| `connectionType` | `options` | `cups` | Server type: `CUPS Server` or `Direct IPP Printer`. |
 | `protocol` | `options` | `http` | Transport: `http` or `https`. |
-| `host` | `string` | — | CUPS/IPP server hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
+| `host` | `string` | — | CUPS/IPP server or printer hostname or IP (e.g. `cupsd`, `192.168.1.10`) |
 | `port` | `number` | `631` | IPP port |
+| `printerPath` | `string` | `/ipp/print` | Path component of the printer endpoint (e.g. `/ipp/print`, `/ipp/printer`, `/`). Shown only when `connectionType = ipp`. |
 | `username` | `string` | `n8n` | `requesting-user-name` sent with each job |
 | `password` | `string` (secret) | `""` | HTTP Basic Auth password. Empty = no auth. |
 | `skipCertValidation` | `boolean` | `false` | Accept self-signed TLS certs. Shown only when `protocol = https`. |
 
-The printer URI is constructed at runtime via `buildIppUrl(protocol, host, port, path, username, password)`. Basic Auth credentials are embedded in the URL when `password` is non-empty.
+**URL construction:**
+- CUPS mode: `{protocol}://{host}:{port}/printers/{printerName}` (printer name from node parameter)
+- Direct IPP mode: `{protocol}://{host}:{port}{printerPath}` (no printer name segment)
+
+The printer URI is constructed at runtime via `buildIppUrl(protocol, host, port, path, username, password)`. Basic Auth credentials are embedded in the URL when `password` is non-empty. The `path` is derived by `resolvePrinterPath(connectionType, printerName, printerPath)`.
 
 ### ipp Package
 
@@ -141,9 +146,16 @@ The `ipp` package has no TypeScript types. Declare a minimal ambient module in `
 
 ### URL and Connection Helpers
 
-Two exported helpers centralise URL construction and TLS options:
+Exported helpers centralise URL construction, path resolution, and TLS options:
 
 ```typescript
+// Resolves the IPP endpoint path based on connectionType
+export function resolvePrinterPath(
+  connectionType: string,   // "cups" | "ipp"
+  printerName: string | undefined,  // used when connectionType === "cups"
+  printerPath: string | undefined,  // used when connectionType === "ipp"
+): string   // e.g. "/printers/MyPrinter" or "/ipp/print"
+
 // Builds the full IPP URL; embeds Basic Auth when password is non-empty
 export function buildIppUrl(
   protocol: string,
@@ -160,7 +172,7 @@ export function buildConnectionOptions(
 ): IppConnectionOptions
 ```
 
-All four call sites (`fetchPrinterAttributes`, `fetchCupsPrinters`, `executeIppJob`, `testCupsConnection`) use these helpers and read `protocol`, `password`, `skipCertValidation` from the credential.
+All call sites use `resolvePrinterPath` to derive `path`, then pass it to `buildIppUrl`. `fetchPrinterAttributes` now takes `path` directly (not `printerName`). Connection tests use `testCupsConnection` (CUPS) or `testIppConnection` (Direct IPP).
 
 ### IPP Message Structure
 
