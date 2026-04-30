@@ -426,23 +426,61 @@ const COLOR_MODE_LABELS: Record<string, string> = {
 	"bi-level": "Bi-Level",
 };
 
-const DOCUMENT_FORMAT_DEFAULTS = [
-	{ name: "PDF (IPP General)", value: "application/pdf" },
-	{ name: "PWG Raster (IPP General)", value: "image/pwg-raster" },
-	{ name: "Apple Raster / URF (IPP General)", value: "image/urf" },
-	{ name: "Auto-detect (IPP General)", value: "application/octet-stream" },
-];
-
 const DOCUMENT_FORMAT_LABELS: Record<string, string> = {
-	"application/pdf": "PDF",
-	"image/pwg-raster": "PWG Raster",
-	"image/urf": "Apple Raster / URF",
-	"application/octet-stream": "Auto-detect",
-	"application/postscript": "PostScript",
-	"text/plain": "Plain Text",
-	"image/jpeg": "JPEG",
-	"image/png": "PNG",
+	"application/pdf": "PDF (application/pdf)",
+	"image/pwg-raster": "PWG Raster (image/pwg-raster)",
+	"image/urf": "Apple Raster / URF (image/urf)",
+	"application/octet-stream": "Auto-detect (application/octet-stream)",
+	"application/postscript": "PostScript (application/postscript)",
+	"text/plain": "Plain Text (text/plain)",
+	"image/jpeg": "JPEG (image/jpeg)",
+	"image/png": "PNG (image/png)",
+	"image/gif": "GIF (image/gif)",
+	"image/tiff": "TIFF (image/tiff)",
+	"application/vnd.adobe-reader-postscript":
+		"Adobe Reader PostScript (application/vnd.adobe-reader-postscript)",
+	"application/vnd.cups-pdf": "CUPS PDF (application/vnd.cups-pdf)",
+	"application/vnd.cups-pdf-banner":
+		"CUPS PDF Banner (application/vnd.cups-pdf-banner)",
+	"application/vnd.cups-postscript":
+		"CUPS PostScript (application/vnd.cups-postscript)",
+	"application/vnd.cups-raster": "CUPS Raster (application/vnd.cups-raster)",
+	"application/vnd.cups-raw": "CUPS Raw (application/vnd.cups-raw)",
+	"application/vnd.epson.escpr": "Epson ESC/PR (application/vnd.epson.escpr)",
+	"application/x-cshell": "C Shell Script (application/x-cshell)",
+	"application/x-csource": "C Source (application/x-csource)",
+	"application/x-perl": "Perl Script (application/x-perl)",
+	"application/x-shell": "Shell Script (application/x-shell)",
+	"image/x-bitmap": "BMP (image/x-bitmap)",
+	"image/x-photocd": "Photo CD (image/x-photocd)",
+	"image/x-portable-anymap": "PNM (image/x-portable-anymap)",
+	"image/x-portable-bitmap": "PBM (image/x-portable-bitmap)",
+	"image/x-portable-graymap": "PGM (image/x-portable-graymap)",
+	"image/x-portable-pixmap": "PPM (image/x-portable-pixmap)",
+	"image/x-sgi-rgb": "SGI RGB (image/x-sgi-rgb)",
+	"image/x-sun-raster": "Sun Raster (image/x-sun-raster)",
+	"image/x-xbitmap": "X Bitmap (image/x-xbitmap)",
+	"image/x-xpixmap": "X Pixmap (image/x-xpixmap)",
+	"image/x-xwindowdump": "X Window Dump (image/x-xwindowdump)",
+	"text/css": "CSS (text/css)",
+	"text/html": "HTML (text/html)",
 };
+
+const DOCUMENT_FORMAT_DEFAULTS = [
+	{ name: "PDF (application/pdf) (IPP General)", value: "application/pdf" },
+	{
+		name: "PWG Raster (image/pwg-raster) (IPP General)",
+		value: "image/pwg-raster",
+	},
+	{
+		name: "Apple Raster / URF (image/urf) (IPP General)",
+		value: "image/urf",
+	},
+	{
+		name: "Auto-detect (application/octet-stream) (IPP General)",
+		value: "application/octet-stream",
+	},
+];
 
 async function listPrinterAttribute(
 	ctx: ILoadOptionsFunctions,
@@ -699,7 +737,7 @@ const nodeDescription: INodeTypeDescription = {
 			default: {
 				mode: "list",
 				value: "application/pdf",
-				cachedResultName: "PDF (IPP General)",
+				cachedResultName: "PDF (application/pdf) (IPP General)",
 			},
 			description:
 				"IPP document-format MIME type. Select from printer-supported formats or enter a MIME type manually.",
